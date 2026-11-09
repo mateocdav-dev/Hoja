@@ -1,4 +1,5 @@
 import { db, dayKey, askPersistence } from './db.js';
+import { applyMode, cycleMode } from './theme.js';
 import { Reader } from './reader.js';
 import { initIdeaSheet, renderIdeas, setToast, exportMarkdown, exportBackup, importBackup } from './ideas.js';
 
@@ -240,7 +241,12 @@ async function importBook(file, progressMsg = 'Añadiendo libro…', single = tr
   }
 }
 
+// ---------- modo claro / noche ----------
+const MODE_LABEL = { auto: 'Automático: sigue al sistema', dark: 'Modo noche', light: 'Modo claro' };
+$('#mode-btn').addEventListener('click', () => toast(MODE_LABEL[cycleMode()]));
+
 // ---------- arranque ----------
+applyMode();
 setToast(toast);
 initIdeaSheet();
 renderHome();

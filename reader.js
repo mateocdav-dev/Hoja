@@ -1,11 +1,12 @@
 // Lector EPUB sobre epub.js: paginado, % de avance, temas, tamaño de letra y tiempo leído.
 import { db, dayKey, getSetting, setSetting } from './db.js';
 import { HIGHLIGHT, addHighlight, highlightsFor, openIdeaSheet } from './ideas.js';
+import { isDark, appBg } from './theme.js';
 
 const THEMES = {
-  crema:  { bg: '#F6F0E4', fg: '#2A2622', link: '#9A6B1E' },
+  crema:  { bg: '#F2EFEA', fg: '#2A2622', link: '#9A6B1E' },
   blanco: { bg: '#FFFFFF', fg: '#1E1E1E', link: '#9A6B1E' },
-  noche:  { bg: '#1B1A17', fg: '#E8E2D6', link: '#B9C49A' },
+  noche:  { bg: '#131F24', fg: '#DCE6EC', link: '#B9C49A' },
 };
 const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap';
 const IDLE_LIMIT = 5 * 60 * 1000; // sin pasar página en 5 min ya no cuenta como lectura
@@ -16,7 +17,9 @@ export class Reader {
   constructor({ onClose }) {
     this.onClose = onClose;
     this.el = $('#reader');
-    this.prefs = { theme: 'crema', fontSize: 100 };
+    this.prefs = { lightTheme: 'crema', darkTheme: 'noche', fontSize: 100 };
+    // Al cambiar el modo de la app, el lector cambia al tema elegido para ese modo
+    window.addEventListener('hoja:mode', () => { if (this.rendition) this.applyTheme(); else this.applyChrome(); });
     this.pendingSeconds = 0;
 
     $('#r-back').addEventListener('click', () => this.close());
@@ -44,9 +47,15 @@ export class Reader {
 
     this.id = id;
     this.rec = rec;
-    this.prefs = await getSetting('reader', this.prefs);
+    const savedPrefs = await getSetting('reader', {});
+    this.prefs = {
+      lightTheme: savedPrefs.lightTheme || (savedPrefs.theme && savedPrefs.theme !== 'noche' ? savedPrefs.theme : 'crema'),
+      darkTheme: savedPrefs.darkTheme || 'noche',
+      fontSize: savedPrefs.fontSize || 100,
+    };
     this.el.hidden = false;
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('reading');
     $('#r-title').textContent = rec.title;
     $('#r-loading').hidden = false;
     this.paintProgress(rec.percent || 0, '');
@@ -97,7 +106,7 @@ export class Reader {
     this.bindGestures();
     this.rendition.on('relocated', loc => this.onRelocated(loc));
 
-    this.rendition.themes.select(this.prefs.theme);
+    this.rendition.themes.select(this.theme);
     this.rendition.themes.fontSize(this.prefs.fontSize + '%');
 
     await this.book.ready;
@@ -165,7 +174,7 @@ export class Reader {
 
   // ---------- subrayados ----------
   hlStyles() {
-    return this.prefs.theme === 'noche'
+    return this.theme === 'noche'
       ? { fill: HIGHLIGHT, 'fill-opacity': '0.45', 'mix-blend-mode': 'normal' }
       : { fill: HIGHLIGHT, 'fill-opacity': '0.5', 'mix-blend-mode': 'multiply' };
   }
@@ -312,19 +321,25 @@ export class Reader {
 
   setTheme(name) {
     if (!THEMES[name]) return;
-    this.prefs.theme = name;
-    this.rendition?.themes.select(name);
-    if (this.rendition) this.repaintAll();
+    if (isDark()) this.prefs.darkTheme = name; else this.prefs.lightTheme = name;
     setSetting('reader', this.prefs);
+    this.applyTheme();
+  }
+
+  get theme() { return isDark() ? this.prefs.darkTheme : this.prefs.lightTheme; }
+
+  applyTheme() {
+    this.rendition?.themes.select(this.theme);
+    if (this.rendition) this.repaintAll();
     this.applyChrome();
   }
 
   applyChrome() {
-    this.el.className = 'reader t-' + this.prefs.theme;
+    this.el.className = 'reader t-' + this.theme;
     $('#fs-val').textContent = this.prefs.fontSize + '%';
-    document.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.theme === this.prefs.theme));
+    document.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.theme === this.theme));
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = this.isOpen ? THEMES[this.prefs.theme].bg : '#F2EFEA';
+    if (meta) meta.content = this.isOpen ? THEMES[this.theme].bg : appBg();
   }
 
   async close(silent = false) {
@@ -340,6 +355,7 @@ export class Reader {
     this.rendition = null; this.book = null; this.cfi = null; this.percent = null;
     this.el.hidden = true;
     document.body.style.overflow = '';
+    document.body.classList.remove('reading');
     this.applyChrome();
     if (!silent) this.onClose?.();
   }

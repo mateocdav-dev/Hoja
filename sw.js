@@ -1,6 +1,6 @@
 // Guarda la app en caché para que abra sin internet.
 // Al cambiar archivos de la app, sube la versión para forzar la actualización.
-const CACHE = 'hoja-v5';
+const CACHE = 'hoja-v6';
 const SHELL = [
   './',
   'index.html',
@@ -9,6 +9,7 @@ const SHELL = [
   'db.js',
   'reader.js',
   'ideas.js',
+  'theme.js',
   'manifest.webmanifest',
   'icons/icon-180.png',
   'icons/icon-192.png',
