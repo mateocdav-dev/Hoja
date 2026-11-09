@@ -357,3 +357,28 @@ a { color: var(--brown); }
   transition: opacity .2s ease, transform .2s ease;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Aviso de versión nueva ---------- */
+#update-bar {
+  position: fixed; left: 50%; top: calc(var(--sat) + 10px); z-index: 95;
+  transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 0 18px; border-radius: 99px; white-space: nowrap;
+  background: var(--accent); color: var(--on-accent); font-size: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .2); animation: fade .25s ease;
+}
+#update-bar[hidden] { display: none; }
+#update-bar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Jalar para refrescar ---------- */
+#ptr {
+  position: fixed; left: 50%; top: calc(var(--sat) - 48px); z-index: 96;
+  width: 44px; height: 44px; border-radius: 50%; background: var(--card); color: var(--muted);
+  display: grid; place-items: center; opacity: 0; pointer-events: none;
+  transform: translate(-50%, 0); box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+}
+#ptr svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+#ptr.armed { color: var(--accent); }
+#ptr.armed svg { transform: rotate(180deg); }
+#ptr.back { transition: transform .25s ease, opacity .25s ease; }
+#ptr.spin svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

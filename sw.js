@@ -1,6 +1,7 @@
 // Guarda la app en caché para que abra sin internet.
-// Al cambiar archivos de la app, sube la versión para forzar la actualización.
-const CACHE = 'hoja-v6';
+// Al cambiar archivos de la app, sube la versión: el teléfono la detecta, descarga todo de nuevo
+// (sin usar copias viejas) y la app se recarga sola o muestra un aviso.
+const CACHE = 'hoja-v7';
 const SHELL = [
   './',
   'index.html',
@@ -19,7 +20,10 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' evita que el navegador reutilice archivos viejos de su caché HTTP
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -30,7 +34,8 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Primero lo guardado (rápido y sin internet); se actualiza en segundo plano.
+// Siempre lo guardado de esta versión (rápido, sin internet y sin mezclar versiones).
+// Lo que no esté guardado (p. ej. fuentes) se descarga y se guarda.
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -43,10 +48,9 @@ self.addEventListener('fetch', e => {
 
   e.respondWith(caches.open(CACHE).then(async cache => {
     const hit = await cache.match(req, { ignoreSearch: url.origin === location.origin });
-    const fresh = fetch(req).then(res => {
-      if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
-      return res;
-    }).catch(() => hit);
-    return hit || fresh;
+    if (hit) return hit;
+    const res = await fetch(req);
+    if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
+    return res;
   }));
 });

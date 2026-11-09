@@ -255,6 +255,66 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !reader.isOpen) renderHome();
 });
 
+// ---------- actualizaciones ----------
+// Busca una versión nueva al abrir y cada vez que la app vuelve a primer plano
+// (en iPhone la app suele "despertar" sin recargarse). Cuando la versión nueva está lista:
+// si no estás leyendo, recarga sola; si estás leyendo, muestra un aviso para no interrumpirte.
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err));
+  const hadController = !!navigator.serviceWorker.controller;
+  let refreshing = false;
+  const reloadNow = () => { if (refreshing) return; refreshing = true; location.reload(); };
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // primera instalación: nada que actualizar
+    if (reader.isOpen) $('#update-bar').hidden = false;
+    else reloadNow();
+  });
+  $('#update-bar').addEventListener('click', async () => {
+    if (reader.isOpen) await reader.close(true);
+    reloadNow();
+  });
+
+  // Jalar hacia abajo (estando arriba del todo) para buscar versión nueva y recargar
+  const ptr = $('#ptr');
+  let startY = null, armed = false;
+  const resetPtr = () => {
+    ptr.classList.add('back'); ptr.style.transform = ''; ptr.style.opacity = '';
+    ptr.classList.remove('armed');
+    setTimeout(() => ptr.classList.remove('back'), 260);
+  };
+  window.addEventListener('touchstart', e => {
+    const busy = reader.isOpen || !$('#idea-modal').hidden || window.scrollY > 0 || e.touches.length > 1;
+    startY = busy ? null : e.touches[0].clientY;
+    armed = false;
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (startY == null) return;
+    const d = Math.max(0, Math.min((e.touches[0].clientY - startY) * 0.5, 100));
+    ptr.style.transform = `translate(-50%, ${d}px)`;
+    ptr.style.opacity = Math.min(1, d / 50);
+    armed = d >= 75;
+    ptr.classList.toggle('armed', armed);
+  }, { passive: true });
+  window.addEventListener('touchend', async () => {
+    if (startY == null) return;
+    startY = null;
+    if (!armed) { resetPtr(); return; }
+    ptr.classList.add('spin');
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        await reg.update();
+        const sw = reg.installing || reg.waiting;
+        // Si hay versión nueva, al activarse se recarga sola (controllerchange)
+        if (sw) await new Promise(res => { sw.addEventListener('statechange', () => sw.state === 'activated' && res()); setTimeout(res, 6000); });
+      }
+    } catch {}
+    reloadNow();
+  });
+
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(err => console.warn('SW', err));
 }
