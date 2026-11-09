@@ -135,8 +135,8 @@ async function renderHome() {
         ${coverHtml(b)}
         <p class="title">${esc(b.title)}</p>
       </button>
-      <div class="meta"><span class="track"><i style="width:${pct(b.percent)}%"></i></span>${pct(b.percent)}%</div>
-      <button class="more" data-more="${b.id}" aria-label="Opciones de ${esc(b.title)}">···</button>
+      <div class="meta"><span class="track"><i style="width:${pct(b.percent)}%"></i></span>${pct(b.percent)}%
+        <button class="more" data-more="${b.id}" aria-label="Quitar ${esc(b.title)}">···</button></div>
     </div>`).join('') : `
     <div class="empty">
       <h3>Tu biblioteca está vacía</h3>
