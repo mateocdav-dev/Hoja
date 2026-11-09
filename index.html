@@ -138,8 +138,12 @@
     <div id="r-view"></div>
     <div class="r-loading" id="r-loading">Abriendo libro…</div>
     <footer class="r-bottom">
-      <div class="r-meta"><span id="r-chapter"></span><span id="r-pct">0%</span></div>
-      <div class="bar"><i id="r-bar"></i></div>
+      <button class="r-arrow" id="r-prev" aria-label="Página anterior"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button>
+      <div class="r-progress">
+        <div class="r-meta"><span id="r-chapter"></span><span id="r-pct">0%</span></div>
+        <div class="bar"><i id="r-bar"></i></div>
+      </div>
+      <button class="r-arrow" id="r-next" aria-label="Página siguiente"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
     </footer>
 
     <div class="selbar" id="r-selbar" hidden>

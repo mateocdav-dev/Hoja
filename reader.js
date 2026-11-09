@@ -30,6 +30,8 @@ export class Reader {
     document.querySelectorAll('.sw').forEach(b =>
       b.addEventListener('click', () => this.setTheme(b.dataset.theme)));
     $('#sel-hl').addEventListener('click', () => this.saveSelection(false));
+    $('#r-prev').addEventListener('click', () => this.prev());
+    $('#r-next').addEventListener('click', () => this.next());
     $('#sel-note').addEventListener('click', () => this.saveSelection(true));
 
     document.addEventListener('keydown', e => this.onKey(e));
@@ -87,6 +89,7 @@ export class Reader {
     }
     this.rendition.hooks.content.register(contents => {
       contents.addStylesheet(FONT_CSS).catch?.(() => {});
+      this.attachTouch(contents);
       // Si el usuario deselecciona, se oculta la barra de subrayar
       contents.document.addEventListener('selectionchange', () => {
         clearTimeout(this.selT);
@@ -137,32 +140,52 @@ export class Reader {
   }
 
   bindGestures() {
-    let sx = 0, sy = 0, st = 0;
-    this.rendition.on('touchstart', e => {
-      const t = e.changedTouches[0]; sx = t.screenX; sy = t.screenY; st = Date.now();
-    });
-    this.rendition.on('touchend', e => {
-      const t = e.changedTouches[0];
-      const dx = t.screenX - sx, dy = t.screenY - sy;
-      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4 && Date.now() - st < 700) {
-        this.swiped = true;
-        setTimeout(() => { this.swiped = false; }, 400);
-        dx < 0 ? this.next() : this.prev();
-      }
-    });
+    // Computador: clic en los bordes. En iPhone Safari no genera clics al tocar texto normal,
+    // así que los toques se leen directamente del dedo (attachTouch) y aquí se ignoran.
     this.rendition.on('click', e => {
-      if (this.swiped) return;
-      const sel = e.view?.getSelection?.();
-      if (sel && sel.toString().trim()) return; // está seleccionando texto
-      const hit = this.highlightAt(e);
-      if (hit) { this.openHighlight(hit); return; }
-      const frame = e.view?.frameElement?.getBoundingClientRect();
-      const x = (frame ? frame.left : 0) + e.clientX;
-      const w = window.innerWidth;
-      if (x < w * 0.3) this.prev();
-      else if (x > w * 0.7) this.next();
+      if (Date.now() - (this.lastTouch || 0) < 800) return;
+      this.handleTap(e.clientX, e.clientY, e.view);
     });
     this.rendition.on('keyup', e => this.onKey(e));
+  }
+
+  // Se engancha a cada página del libro (iframe) en cuanto se carga
+  attachTouch(contents) {
+    const doc = contents.document, win = contents.window;
+    let sx = null, sy = 0, st = 0;
+    doc.addEventListener('touchstart', e => {
+      if (e.touches.length > 1) { sx = null; return; }
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; st = Date.now();
+    }, { passive: true });
+    doc.addEventListener('touchcancel', () => { sx = null; }, { passive: true });
+    doc.addEventListener('touchend', e => {
+      if (sx == null) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy, dt = Date.now() - st;
+      sx = null;
+      this.lastTouch = Date.now();
+      // Deslizar
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3 && dt < 800) {
+        dx < 0 ? this.next() : this.prev();
+        return;
+      }
+      // Toque corto (no presión larga para seleccionar)
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && dt < 400) this.handleTap(t.clientX, t.clientY, win);
+    }, { passive: true });
+  }
+
+  // x, y en coordenadas de la página del libro (iframe)
+  handleTap(x, y, win) {
+    const sel = win?.getSelection?.();
+    if (sel && sel.toString().trim()) return; // está seleccionando texto
+    const hit = this.highlightAt({ clientX: x, clientY: y, view: win });
+    if (hit) { this.openHighlight(hit); return; }
+    const frame = win?.frameElement?.getBoundingClientRect();
+    const sx = (frame ? frame.left : 0) + x;
+    const w = window.innerWidth;
+    if (sx < w * 0.3) this.prev();
+    else if (sx > w * 0.7) this.next();
   }
 
   onKey(e) {

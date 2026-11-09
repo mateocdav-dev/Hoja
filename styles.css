@@ -214,7 +214,7 @@ a { color: var(--brown); }
 #r-view {
   position: absolute; left: 0; right: 0;
   top: calc(var(--sat) + 64px);
-  bottom: calc(var(--sab) + 58px);
+  bottom: calc(var(--sab) + 62px);
 }
 .r-loading {
   position: absolute; inset: 0; display: grid; place-items: center; color: var(--rmuted); pointer-events: none;
@@ -223,8 +223,13 @@ a { color: var(--brown); }
 
 .r-bottom {
   position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 6px 24px calc(var(--sab) + 14px);
+  padding: 4px 8px calc(var(--sab) + 10px);
+  display: flex; align-items: center; gap: 6px;
 }
+.r-progress { flex: 1; min-width: 0; }
+.r-arrow { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--rmuted); }
+.r-arrow:active { background: var(--rbtn); color: var(--rfg); }
+.r-arrow svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .r-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--rmuted); margin-bottom: 8px; }
 .r-meta #r-chapter { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .r-meta #r-pct { font-weight: 600; color: var(--rfg); flex: none; }
