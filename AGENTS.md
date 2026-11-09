@@ -40,7 +40,11 @@ App de lectura personal de Mateo para su **iPhone 14 Pro**. PWA instalable, sin 
 - En iOS, **borrar el ícono de la app borra sus datos**. Antes de reinstalar, guardar respaldo (Crecer → Tus datos). Safari y la app instalada no comparten datos.
 - El ícono de inicio solo cambia al reinstalar.
 - Al instalar el service worker se usa `cache: 'reload'`, para no reutilizar archivos viejos de la caché HTTP de GitHub (10 min).
-- Los libros de Mateo están en `I:\My Drive\02 PROYECTOS\06. BOOKS`, con las versiones con portada en `Con portada\`. No modifiques los originales.
+- Libros de Mateo en `I:\My Drive\02 PROYECTOS\06. BOOKS`:
+  - En la raíz, los EPUB **con portada** ilustrada.
+  - En `Sin portada\`, los originales; no los modifiques.
+  - En `Portadas\`, las imágenes.
+  - En `Backups\`, los respaldos JSON de la app, con la fecha en el nombre.
 
 ## Pendientes / ideas
 - Confirmar en el iPhone: barra de estado en modo noche, rendimiento del EPUB de 40 MB (*Mente millonaria*) y el ícono nuevo tras reinstalar.

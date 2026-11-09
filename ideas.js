@@ -231,7 +231,8 @@ export async function importBackup(file) {
 async function shareOrDownload(files, title) {
   try {
     if (navigator.canShare?.({ files })) {
-      await navigator.share({ files, title });
+      // Sin título: el iPhone lo guardaría como un .txt aparte junto al archivo
+      await navigator.share({ files });
       return true;
     }
   } catch (e) {
