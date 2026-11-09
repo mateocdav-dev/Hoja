@@ -5,7 +5,7 @@ import { HIGHLIGHT, addHighlight, highlightsFor, openIdeaSheet } from './ideas.j
 const THEMES = {
   crema:  { bg: '#F6F0E4', fg: '#2A2622', link: '#9A6B1E' },
   blanco: { bg: '#FFFFFF', fg: '#1E1E1E', link: '#9A6B1E' },
-  noche:  { bg: '#1B1A17', fg: '#E8E2D6', link: '#FDB92E' },
+  noche:  { bg: '#1B1A17', fg: '#E8E2D6', link: '#B9C49A' },
 };
 const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap';
 const IDLE_LIMIT = 5 * 60 * 1000; // sin pasar página en 5 min ya no cuenta como lectura
