@@ -2,7 +2,7 @@
 
 Lector de libros personal para iPhone. Es una web app instalable (PWA): se abre desde la pantalla de inicio como cualquier app y funciona sin internet. Tus libros y tu avance se guardan solo en tu teléfono.
 
-## Qué hace hoy (fases 0 y 1)
+## Qué hace hoy (fases 0, 1 y 2)
 - Añadir libros EPUB con el botón **+**, con portada automática.
 - Biblioteca con portadas y % de avance; tarjeta «Sigue leyendo».
 - Lector paginado: toca el borde derecho/izquierdo o desliza para pasar página.
@@ -10,8 +10,11 @@ Lector de libros personal para iPhone. Es una web app instalable (PWA): se abre 
 - Recuerda dónde ibas.
 - Tamaño de letra y temas crema, blanco y noche.
 - Semana con los días que leíste (≥ 1 min) y contador de racha.
+- Subrayar en verde: selecciona una frase → **Resaltar** o **Nota**. Toca un subrayado para editarlo.
+- Pestaña **Ideas**: tarjetas por libro, fijadas arriba, filtros, #etiquetas en las notas, «Ir al libro».
+- Menú ··· de Ideas: **Exportar a Obsidian** (una nota .md por libro), **Guardar respaldo** y **Restaurar respaldo**.
 
-Próximas fases: subrayar y guardar ideas (2), planta/árbol de racha (3), grafo de ideas (4).
+Próximas fases: planta/árbol de racha (3), grafo de ideas (4).
 
 ## Probar en el computador
 ```bash
@@ -46,5 +49,5 @@ Si tienes un PDF, conviértelo a EPUB con [Calibre](https://calibre-ebook.com) (
 | `scripts/` | Generan íconos, el EPUB de prueba y el servidor local |
 
 ## Ojo
-- iOS puede borrar datos de webs que no usas en semanas; instalada en la pantalla de inicio es mucho más estable. En la fase 2 llega «exportar respaldo».
+- iOS puede borrar datos de webs que no usas en semanas; instalada en la pantalla de inicio es mucho más estable. Guarda un respaldo de vez en cuando (Ideas → ···).
 - Solo EPUB sin DRM. Los libros comprados en Apple Books o Kindle traen DRM y no abren aquí.

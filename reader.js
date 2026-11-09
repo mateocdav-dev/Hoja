@@ -1,5 +1,6 @@
 // Lector EPUB sobre epub.js: paginado, % de avance, temas, tamaño de letra y tiempo leído.
 import { db, dayKey, getSetting, setSetting } from './db.js';
+import { HIGHLIGHT, addHighlight, highlightsFor, openIdeaSheet } from './ideas.js';
 
 const THEMES = {
   crema:  { bg: '#F6F0E4', fg: '#2A2622', link: '#9A6B1E' },
@@ -25,6 +26,8 @@ export class Reader {
     $('#fs-up').addEventListener('click', () => this.setFontSize(this.prefs.fontSize + 10));
     document.querySelectorAll('.sw').forEach(b =>
       b.addEventListener('click', () => this.setTheme(b.dataset.theme)));
+    $('#sel-hl').addEventListener('click', () => this.saveSelection(false));
+    $('#sel-note').addEventListener('click', () => this.saveSelection(true));
 
     document.addEventListener('keydown', e => this.onKey(e));
     document.addEventListener('visibilitychange', () => {
@@ -34,7 +37,7 @@ export class Reader {
 
   get isOpen() { return !this.el.hidden; }
 
-  async open(id) {
+  async open(id, cfi) {
     if (this.isOpen) await this.close(true);
     const [rec, file] = await Promise.all([db.get('books', id), db.get('files', id)]);
     if (!rec || !file) throw new Error('Libro no encontrado');
@@ -75,6 +78,20 @@ export class Reader {
     }
     this.rendition.hooks.content.register(contents => {
       contents.addStylesheet(FONT_CSS).catch?.(() => {});
+      // Si el usuario deselecciona, se oculta la barra de subrayar
+      contents.document.addEventListener('selectionchange', () => {
+        clearTimeout(this.selT);
+        this.selT = setTimeout(() => {
+          const s = contents.window.getSelection();
+          if (!s || !s.toString().trim()) this.showSelBar(false);
+        }, 250);
+      });
+    });
+    this.rendition.on('selected', (cfiRange, contents) => {
+      const text = contents.window.getSelection()?.toString() || '';
+      if (!text.trim()) return;
+      this.selection = { cfi: cfiRange, text, contents };
+      this.showSelBar(true);
     });
 
     this.bindGestures();
@@ -90,8 +107,10 @@ export class Reader {
     if (saved?.data) {
       this.book.locations.load(saved.data);
     }
-    await this.rendition.display(rec.cfi || undefined);
+    await this.rendition.display(cfi || rec.cfi || undefined);
     $('#r-loading').hidden = true;
+    this.highlights = await highlightsFor(id);
+    this.highlights.forEach(h => this.paint(h));
     this.lastActivity = Date.now();
 
     if (!saved?.data) {
@@ -126,6 +145,8 @@ export class Reader {
       if (this.swiped) return;
       const sel = e.view?.getSelection?.();
       if (sel && sel.toString().trim()) return; // está seleccionando texto
+      const hit = this.highlightAt(e);
+      if (hit) { this.openHighlight(hit); return; }
       const frame = e.view?.frameElement?.getBoundingClientRect();
       const x = (frame ? frame.left : 0) + e.clientX;
       const w = window.innerWidth;
@@ -140,6 +161,67 @@ export class Reader {
     if (e.key === 'ArrowRight') this.next();
     if (e.key === 'ArrowLeft') this.prev();
     if (e.key === 'Escape') this.toggleSheet(false);
+  }
+
+  // ---------- subrayados ----------
+  hlStyles() {
+    return this.prefs.theme === 'noche'
+      ? { fill: HIGHLIGHT, 'fill-opacity': '0.45', 'mix-blend-mode': 'normal' }
+      : { fill: HIGHLIGHT, 'fill-opacity': '0.5', 'mix-blend-mode': 'multiply' };
+  }
+
+  paint(h) {
+    try { this.rendition.annotations.highlight(h.cfi, { id: h.id }, () => {}, 'hoja-hl', this.hlStyles()); }
+    catch (e) { console.warn('No se pudo pintar el subrayado', e); }
+  }
+
+  unpaint(h) {
+    try { this.rendition.annotations.remove(h.cfi, 'highlight'); } catch {}
+  }
+
+  repaintAll() {
+    (this.highlights || []).forEach(h => { this.unpaint(h); this.paint(h); });
+  }
+
+  showSelBar(show) {
+    $('#r-selbar').hidden = !show;
+    if (!show) this.selection = null;
+  }
+
+  async saveSelection(withNote) {
+    const sel = this.selection;
+    if (!sel) return;
+    const h = await addHighlight({ book: this.rec, cfi: sel.cfi, text: sel.text, chapter: this.chapter });
+    this.highlights.push(h);
+    this.paint(h);
+    try { sel.contents.window.getSelection().removeAllRanges(); } catch {}
+    this.showSelBar(false);
+    if (withNote) this.openHighlight(h);
+    else window.dispatchEvent(new CustomEvent('hoja:toast', { detail: 'Frase guardada en Ideas' }));
+  }
+
+  openHighlight(h) {
+    openIdeaSheet(h, {
+      onChange: updated => { const i = this.highlights.findIndex(x => x.id === updated.id); if (i >= 0) this.highlights[i] = updated; },
+      onDelete: removed => { this.unpaint(removed); this.highlights = this.highlights.filter(x => x.id !== removed.id); },
+    });
+  }
+
+  // ¿El toque cayó sobre un subrayado?
+  highlightAt(e) {
+    if (!this.highlights?.length) return null;
+    const contents = this.rendition.getContents().find(c => c.window === e.view);
+    if (!contents) return null;
+    for (const h of this.highlights) {
+      try {
+        const range = contents.range(h.cfi);
+        if (!range) continue;
+        for (const r of range.getClientRects()) {
+          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return h;
+        }
+      } catch {}
+    }
+    return null;
   }
 
   next() { this.rendition?.next(); }
@@ -157,6 +239,8 @@ export class Reader {
     if (pct != null) this.percent = pct;
 
     const chapter = this.chapterFor(loc.start.href);
+    this.chapter = chapter;
+    this.showSelBar(false);
     const page = loc.start.displayed;
     const left = page ? page.total - page.page : 0;
     const label = [chapter, left > 0 ? `${left} pág. para terminar el capítulo` : ''].filter(Boolean).join(' · ');
@@ -230,6 +314,7 @@ export class Reader {
     if (!THEMES[name]) return;
     this.prefs.theme = name;
     this.rendition?.themes.select(name);
+    if (this.rendition) this.repaintAll();
     setSetting('reader', this.prefs);
     this.applyChrome();
   }
@@ -248,6 +333,8 @@ export class Reader {
     await this.flushTime();
     await this.saveProgress();
     this.toggleSheet(false);
+    this.showSelBar(false);
+    this.highlights = [];
     try { this.rendition?.destroy(); } catch {}
     try { this.book?.destroy(); } catch {}
     this.rendition = null; this.book = null; this.cfi = null; this.percent = null;

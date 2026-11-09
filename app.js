@@ -1,12 +1,14 @@
 import { db, dayKey, askPersistence } from './db.js';
 import { Reader } from './reader.js';
+import { initIdeaSheet, renderIdeas, setToast, exportMarkdown, exportBackup, importBackup } from './ideas.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const FALLBACK_COLORS = ['#F6D5CF', '#DCD3FB', '#CFE3B5', '#BFD3EC', '#FFE3A3', '#E9DCCB'];
 
 const coverUrls = new Map();
-const reader = new Reader({ onClose: () => { setTab('inicio'); renderHome(); } });
+let returnTab = 'inicio';
+const reader = new Reader({ onClose: () => { setTab(returnTab); renderHome(); } });
 
 // ---------- utilidades ----------
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,8 +40,38 @@ function coverHtml(b) {
 function setTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  returnTab = name;
+  $('#ideas-menu').hidden = true;
+  if (name === 'ideas') showIdeas();
   window.scrollTo(0, 0);
 }
+
+// ---------- ideas ----------
+const goToIdea = async h => {
+  if (!h.bookId || !(await db.get('books', h.bookId))) { toast('Ese libro ya no está en tu biblioteca'); return; }
+  try { await reader.open(h.bookId, h.cfi); }
+  catch (err) { console.error(err); toast('No pude abrir el libro'); }
+};
+const showIdeas = () => renderIdeas({ onGoTo: goToIdea }).catch(err => { console.error(err); toast('No pude cargar tus ideas'); });
+
+$('#ideas-menu-btn').addEventListener('click', () => { $('#ideas-menu').hidden = !$('#ideas-menu').hidden; });
+$('#ideas-menu').addEventListener('click', e => {
+  const b = e.target.closest('[data-action]');
+  if (!b) return;
+  $('#ideas-menu').hidden = true;
+  if (b.dataset.action === 'export-md') exportMarkdown();
+  if (b.dataset.action === 'backup') exportBackup();
+  if (b.dataset.action === 'restore') $('#backup-file').click();
+});
+$('#backup-file').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  await importBackup(f);
+  showIdeas();
+  renderHome();
+});
+window.addEventListener('hoja:toast', e => toast(e.detail));
 
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', async () => {
   const name = t.dataset.tab;
@@ -138,7 +170,7 @@ async function openBook(id) {
 async function deleteBook(id) {
   const b = await db.get('books', id);
   if (!b) return;
-  if (!confirm(`¿Quitar «${b.title}» de tu biblioteca?`)) return;
+  if (!confirm(`¿Quitar «${b.title}» de tu biblioteca? Tus ideas de este libro se conservan.`)) return;
   await Promise.all([db.del('books', id), db.del('files', id), db.del('locations', id)]);
   if (coverUrls.has(id)) { URL.revokeObjectURL(coverUrls.get(id)); coverUrls.delete(id); }
   toast('Libro eliminado');
@@ -194,6 +226,8 @@ async function importBook(file) {
 }
 
 // ---------- arranque ----------
+setToast(toast);
+initIdeaSheet();
 renderHome();
 askPersistence();
 document.addEventListener('visibilitychange', () => {

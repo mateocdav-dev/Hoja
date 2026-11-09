@@ -45,12 +45,26 @@
 
     <!-- IDEAS -->
     <section id="view-ideas" class="view">
-      <header class="page-head"><h1>Ideas</h1></header>
-      <div class="soon soon-lilac">
-        <h3>Tus frases vivirán aquí</h3>
-        <p>Pronto podrás subrayar mientras lees, guardar frases, escribir notas y fijar las ideas que más te muevan.</p>
-        <span class="chip">Fase 2</span>
+      <header class="page-head with-menu">
+        <div><h1>Ideas</h1><span class="count" id="ideas-count"></span></div>
+        <button class="round-btn" id="ideas-menu-btn" aria-label="Exportar y respaldo">
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+        </button>
+      </header>
+      <div class="menu" id="ideas-menu" hidden>
+        <button data-action="export-md">
+          <b>Exportar a Obsidian</b><small>Una nota .md por libro</small>
+        </button>
+        <button data-action="backup">
+          <b>Guardar respaldo</b><small>Ideas, avance y racha en un archivo</small>
+        </button>
+        <button data-action="restore">
+          <b>Restaurar respaldo</b><small>Desde un archivo .json de Hoja</small>
+        </button>
       </div>
+      <div class="filters" id="ideas-filters"></div>
+      <div class="ideas" id="ideas-list"></div>
+      <input type="file" id="backup-file" accept=".json,application/json" hidden>
     </section>
 
     <!-- CRECER -->
@@ -110,6 +124,13 @@
       <div class="bar"><i id="r-bar"></i></div>
     </footer>
 
+    <div class="selbar" id="r-selbar" hidden>
+      <button id="sel-hl"><i class="dot"></i>Resaltar</button>
+      <button id="sel-note">
+        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4Zm10-14 4 4"/></svg>Nota
+      </button>
+    </div>
+
     <div class="sheet-backdrop" id="r-backdrop" hidden></div>
     <div class="sheet" id="r-sheet" hidden>
       <div class="grab"></div>
@@ -129,6 +150,29 @@
           <button data-theme="noche" class="sw sw-noche" aria-label="Noche"></button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- DETALLE DE IDEA (en el lector y en Ideas) -->
+  <div class="modal" id="idea-modal" hidden>
+    <div class="modal-backdrop" id="idea-backdrop"></div>
+    <div class="sheet idea-sheet">
+      <div class="grab"></div>
+      <p class="idea-source" id="idea-source"></p>
+      <blockquote class="idea-quote-big" id="idea-quote"></blockquote>
+      <textarea id="idea-note" rows="3" placeholder="¿Qué te dice esta frase? Usa #etiquetas para conectar ideas"></textarea>
+      <div class="idea-actions">
+        <button class="pill" id="idea-pin">
+          <svg viewBox="0 0 24 24"><path d="M15 3 21 9l-4 1-4 4 1 5-2 1-4-4-4 4-1-1 4-4-4-4 1-2 5 1 4-4Z"/></svg><span>Fijar</span>
+        </button>
+        <button class="pill" id="idea-goto" hidden>
+          <svg viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5m0-13C14 5 17 4.5 20 5v13c-3-.5-6 0-8 1.5m0-13v13"/></svg><span>Ir al libro</span>
+        </button>
+        <button class="pill danger" id="idea-delete" aria-label="Borrar">
+          <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2m-7 0 1 12h8l1-12"/></svg>
+        </button>
+      </div>
+      <button class="btn btn-green" id="idea-save">Guardar</button>
     </div>
   </div>
 
