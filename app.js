@@ -182,25 +182,38 @@ $('#fab').addEventListener('click', () => $('#file').click());
 $('#file').addEventListener('change', async e => {
   const files = [...e.target.files];
   e.target.value = '';
-  for (const f of files) await importBook(f);
+  if (!files.length) return;
+  const results = [];
+  for (const [i, f] of files.entries()) {
+    results.push(await importBook(f, files.length > 1 ? `Añadiendo ${i + 1} de ${files.length}…` : 'Añadiendo libro…', files.length === 1));
+  }
+  if (files.length > 1) {
+    const ok = results.filter(r => r === 'ok').length;
+    const dup = results.filter(r => r === 'dup').length;
+    const bad = results.filter(r => r === 'error').length;
+    toast([`${ok} ${ok === 1 ? 'libro añadido' : 'libros añadidos'}`, dup && `${dup} ya estaba${dup === 1 ? '' : 'n'}`, bad && `${bad} no se pudo${bad === 1 ? '' : 'ieron'} leer`].filter(Boolean).join(' · '), 3500);
+  }
   renderHome();
 });
 
-async function importBook(file) {
-  toast('Añadiendo libro…', 10000);
+// Devuelve 'ok', 'dup' o 'error'. Si se importan varios, solo muestra el progreso y un resumen al final.
+async function importBook(file, progressMsg = 'Añadiendo libro…', single = true) {
+  toast(progressMsg, 10000);
   let book;
   try {
     const data = await file.arrayBuffer();
     book = ePub(data.slice(0));
-    await book.opened;
-    const meta = await book.loaded.metadata;
+    // Un archivo dañado puede dejar a epub.js esperando para siempre
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('EPUB ilegible')), 15000));
+    await Promise.race([book.opened, timeout]);
+    const meta = await Promise.race([book.loaded.metadata, timeout]);
     const title = (meta.title || file.name.replace(/\.epub$/i, '')).trim();
     const author = (meta.creator || '').trim();
 
     const existing = await db.all('books');
     if (existing.some(b => b.title === title && b.author === author)) {
-      toast('Ese libro ya está en tu biblioteca');
-      return;
+      if (single) toast('Ese libro ya está en tu biblioteca');
+      return 'dup';
     }
 
     let cover = null, coverType = null;
@@ -216,10 +229,12 @@ async function importBook(file) {
     const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await db.put('files', { id, data });
     await db.put('books', { id, title, author, cover, coverType, added: Date.now(), percent: 0, cfi: null, lastOpened: null });
-    toast(`Listo: ${title}`);
+    if (single) toast(`Listo: ${title}`);
+    return 'ok';
   } catch (err) {
     console.error(err);
-    toast('No pude leer ese archivo. ¿Es un EPUB?');
+    if (single) toast('No pude leer ese archivo. ¿Es un EPUB?');
+    return 'error';
   } finally {
     try { book?.destroy(); } catch {}
   }
