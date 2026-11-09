@@ -72,7 +72,15 @@ export class Reader {
     this.rendition = this.book.renderTo('r-view', {
       width: '100%', height: '100%',
       flow: 'paginated', spread: 'none',
-      allowScriptedContent: false,
+      // Safari (iPhone) no entrega toques, deslizar ni selección a un iframe aislado sin scripts.
+      // Se permite, y por seguridad se eliminan los scripts del libro antes de mostrarlo (abajo).
+      allowScriptedContent: true,
+    });
+    this.book.spine.hooks.serialize.register((output, section) => {
+      section.output = output
+        .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+        .replace(/<script\b[^>]*\/>/gi, '')
+        .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, '');
     });
 
     for (const [name, t] of Object.entries(THEMES)) {
@@ -82,6 +90,7 @@ export class Reader {
           'font-family': "'Literata', Georgia, serif !important",
           'line-height': '1.62 !important',
           '-webkit-text-size-adjust': '100%',
+          'touch-action': 'manipulation',
         },
         'p, li, div, span, blockquote, h1, h2, h3, h4, h5, h6': { color: 'inherit !important' },
         'p': { 'text-align': 'left' },

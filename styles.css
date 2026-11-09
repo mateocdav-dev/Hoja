@@ -43,6 +43,8 @@ html[data-theme="dark"] {
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* Sin zoom por doble toque (y toques más rápidos en iPhone) */
+html, body, button, a, input, textarea { touch-action: manipulation; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); }
 body {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
