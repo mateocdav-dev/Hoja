@@ -56,7 +56,30 @@ const goToIdea = async h => {
   try { await reader.open(h.bookId, h.cfi); }
   catch (err) { console.error(err); toast('No pude abrir el libro'); }
 };
-const showIdeas = () => renderIdeas({ onGoTo: goToIdea }).catch(err => { console.error(err); toast('No pude cargar tus ideas'); });
+// Ideas: vista de mapa (estilo Obsidian) o de tarjetas; se recuerda la última elegida
+const getIdeasView = () => { try { return localStorage.getItem('hoja-ideas-view') || 'map'; } catch { return 'map'; } };
+const showIdeas = async () => {
+  const view = getIdeasView();
+  document.querySelectorAll('#ideas-seg button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  $('#ideas-map').hidden = view !== 'map';
+  $('#ideas-cards').hidden = view !== 'cards';
+  try {
+    if (view === 'map') {
+      await renderGraph($('#graph'), {
+        countEl: $('#ideas-count'),
+        onOpen: h => openIdeaSheet(h, { onChange: showIdeas, onDelete: showIdeas, onGoTo: h.bookId ? goToIdea : null }),
+      });
+    } else {
+      await renderIdeas({ onGoTo: goToIdea });
+    }
+  } catch (err) { console.error(err); toast('No pude cargar tus ideas'); }
+};
+$('#ideas-seg').addEventListener('click', e => {
+  const b = e.target.closest('[data-view]');
+  if (!b) return;
+  try { localStorage.setItem('hoja-ideas-view', b.dataset.view); } catch {}
+  showIdeas();
+});
 
 $('#ideas-menu-btn').addEventListener('click', () => { $('#ideas-menu').hidden = !$('#ideas-menu').hidden; });
 $('#ideas-menu').addEventListener('click', e => {
@@ -245,10 +268,6 @@ async function importBook(file, progressMsg = 'Añadiendo libro…', single = tr
 const showGrowth = async () => {
   try {
     await renderGrowth({ onGoalChange: renderHome });
-    await renderGraph($('#graph'), {
-      countEl: $('#graph-count'),
-      onOpen: h => openIdeaSheet(h, { onChange: showGrowth, onDelete: showGrowth, onGoTo: h.bookId ? goToIdea : null }),
-    });
   } catch (err) { console.error(err); toast('No pude cargar Crecer'); }
 };
 $('#data-card').addEventListener('click', async e => {

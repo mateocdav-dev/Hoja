@@ -82,8 +82,15 @@
           <b>Restaurar respaldo</b><small>Desde un archivo .json de Hoja</small>
         </button>
       </div>
-      <div class="filters" id="ideas-filters"></div>
-      <div class="ideas" id="ideas-list"></div>
+      <div class="seg ideas-seg" id="ideas-seg">
+        <button data-view="map">Mapa</button>
+        <button data-view="cards">Tarjetas</button>
+      </div>
+      <div id="ideas-map" hidden><div class="graph-card ideas-graph" id="graph"></div></div>
+      <div id="ideas-cards">
+        <div class="filters" id="ideas-filters"></div>
+        <div class="ideas" id="ideas-list"></div>
+      </div>
       <input type="file" id="backup-file" accept=".json,application/json" hidden>
     </section>
 
@@ -91,8 +98,6 @@
     <section id="view-crecer" class="view">
       <header class="page-head"><h1>Crecer</h1></header>
       <div id="growth"></div>
-      <div class="section-head"><h2>Mapa de ideas</h2><span class="count" id="graph-count"></span></div>
-      <div class="graph-card" id="graph"></div>
       <div class="section-head"><h2>Tus datos</h2></div>
       <div class="data-card" id="data-card"></div>
     </section>

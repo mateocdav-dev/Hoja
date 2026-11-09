@@ -483,3 +483,9 @@ html[data-theme="dark"] .t-ground, html[data-theme="dark"] .t-seed { fill: #B08B
 .nudge span { color: var(--muted); font-size: 14px; line-height: 1.4; }
 .nudge-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .nudge-actions .btn { width: auto; min-height: 44px; padding: 0 20px; font-size: 15px; }
+
+/* ---------- Ideas: mapa / tarjetas ---------- */
+.ideas-seg { margin-bottom: 14px; }
+.ideas-graph { padding: 6px; }
+.ideas-graph .graph { height: calc(100dvh - var(--sat) - var(--sab) - var(--tab-h) - 230px); min-height: 340px; }
+#ideas-map[hidden], #ideas-cards[hidden] { display: none; }
