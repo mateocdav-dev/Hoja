@@ -1,5 +1,6 @@
 // Crecer: racha, árbol que gana una hoja cada 7 días seguidos, estadísticas, meta diaria y respaldo.
 import { db, dayKey, getSetting, setSetting } from './db.js';
+import { initializeProgress } from './progress.js';
 
 const STAGES = ['Semilla', 'Brote', 'Plantita', 'Arbusto', 'Árbol joven', 'Árbol'];
 const GOALS = [5, 10, 15, 20, 30];
@@ -9,7 +10,7 @@ const $ = s => document.querySelector(s);
 export const getGoal = () => getSetting('dailyGoal', 10);
 
 export function readDaysFrom(sessions, goalMin) {
-  return new Set(sessions.filter(s => s.seconds >= goalMin * 60).map(s => s.date));
+  return new Set(sessions.filter(s => s.completed || s.seconds >= (s.goalMin || goalMin) * 60).map(s => s.date));
 }
 
 const toDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -79,10 +80,12 @@ export function treeSVG(leaves, progress = 0) {
 
 // ---------- vista ----------
 export async function renderGrowth({ onGoalChange } = {}) {
+  await initializeProgress();
   const [sessions, goal, lastBackup] = await Promise.all([db.all('sessions'), getGoal(), getSetting('lastBackup', null)]);
   const days = readDaysFrom(sessions, goal);
   const info = streakInfo(days);
   const today = sessions.find(s => s.date === dayKey());
+  const todayGoal = today?.goalMin || goal;
   const todayMin = Math.floor((today?.seconds || 0) / 60);
   const totalMin = Math.round(sessions.reduce((a, s) => a + s.seconds, 0) / 60);
   const inBlock = info.current % 7;
@@ -111,10 +114,10 @@ export async function renderGrowth({ onGoalChange } = {}) {
       <div class="stat"><b>${hm}</b><span>Tiempo leído</span></div>
     </div>
     <div class="goal-card">
-      <div class="goal-top"><b>Meta diaria</b><span>${Math.min(todayMin, goal)} / ${goal} min hoy</span></div>
-      <div class="track goal-track"><i style="width:${Math.min(100, (todayMin / goal) * 100)}%"></i></div>
+      <div class="goal-top"><b>Meta diaria</b><span>${Math.min(todayMin, todayGoal)} / ${todayGoal} min hoy</span></div>
+      <div class="track goal-track"><i style="width:${Math.min(100, (todayMin / todayGoal) * 100)}%"></i></div>
       <div class="goal-chips">${GOALS.map(g => `<button class="fchip ${g === goal ? 'on' : ''}" data-goal="${g}">${g} min</button>`).join('')}</div>
-      <p class="goal-note">Un día cuenta para tu racha cuando llegas a la meta.</p>
+      <p class="goal-note">${todayGoal !== goal ? `Tu nueva meta de ${goal} min empieza mañana. ` : ''}Los días cumplidos y las hojas ganadas se conservan al cambiar la meta.</p>
     </div>`;
 
   $('#data-card').innerHTML = `

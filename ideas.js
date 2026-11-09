@@ -1,5 +1,6 @@
 // Ideas: subrayados, notas, fijadas, exportar a Obsidian y respaldo.
 import { db, dayKey, setSetting } from './db.js';
+import { backupFilename, createBackup, restoreBackup } from './backup.js';
 
 export const HIGHLIGHT = '#8F9C70';
 const CARD_COLORS = ['#F6D5CF', '#DCD3FB', '#CFE3B5', '#BFD3EC', '#FFE3A3', '#E9DCCB'];
@@ -177,61 +178,72 @@ export async function exportMarkdown() {
 }
 
 // ---------- respaldo ----------
+let backupBusy = false;
 export async function exportBackup() {
-  const [books, highlights, sessions, settings, bookmarks] = await Promise.all(
-    ['books', 'highlights', 'sessions', 'settings', 'bookmarks'].map(s => db.all(s)));
-  const data = {
-    app: 'hoja', version: 1, exported: new Date().toISOString(),
-    books: books.map(({ cover, coverType, ...b }) => b), // sin portadas ni archivos: pesa poco
-    highlights, sessions, settings: settings.filter(s => s.key !== 'lastBackup' && s.key !== 'backupSnooze'), bookmarks,
-  };
-  const file = new File([JSON.stringify(data, null, 1)], `hoja-respaldo-${dayKey()}.json`, { type: 'application/json' });
-  if (await shareOrDownload([file], 'Respaldo de Hoja')) {
-    await setSetting('lastBackup', Date.now());
-    toastFn('Respaldo guardado');
-  }
+  if (backupBusy) return;
+  backupBusy = true;
+  try {
+    toastFn('Preparando libros y datos…', 10000);
+    const blob = await createBackup();
+    const file = new File([blob], backupFilename(), { type: 'application/zip' });
+    toastFn('Respaldo listo', 1200);
+    // La preparación de un libro grande puede consumir el gesto inicial que exige iOS para compartir.
+    // Se pide un segundo toque solo cuando el archivo ya está listo.
+    await offerBackup(file);
+  } catch (e) {
+    console.error(e);
+    toastFn('No pude preparar el respaldo. Tus datos siguen en Hoja.', 5000);
+  } finally { backupBusy = false; }
+}
+
+async function offerBackup(file) {
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'backup-dialog';
+    dialog.setAttribute('aria-labelledby', 'backup-title');
+    dialog.setAttribute('aria-describedby', 'backup-description');
+    dialog.innerHTML = `<h3 id="backup-title">Tu respaldo está listo</h3><p id="backup-description">Incluye tus libros, portadas, ideas y avance (${(file.size / 1048576).toFixed(1)} MB). Guárdalo en Archivos o en Drive.</p><div class="data-actions"><button class="pill" data-cancel>Cancelar</button><button class="btn" data-save>Guardar archivo</button></div>`;
+    const close = () => { dialog.close(); dialog.remove(); resolve(); };
+    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    dialog.querySelector('[data-cancel]').onclick = close;
+    dialog.querySelector('[data-save]').onclick = async e => {
+      e.target.disabled = true;
+      try {
+        if (await shareOrDownload([file], 'Respaldo de Hoja')) {
+          await setSetting('lastBackup', Date.now());
+          toastFn('Respaldo enviado para guardar');
+          close();
+        } else e.target.disabled = false;
+      } catch (error) {
+        console.error(error);
+        toastFn('No pude guardar el archivo. Inténtalo de nuevo.');
+        e.target.disabled = false;
+      }
+    };
+    document.body.appendChild(dialog);
+    dialog.showModal();
+  });
 }
 
 export async function importBackup(file) {
+  if (backupBusy) return;
+  backupBusy = true;
   try {
-    const data = JSON.parse(await file.text());
-    if (data.app !== 'hoja') throw new Error('No es un respaldo de Hoja');
-    const current = await db.all('books');
-    const match = (title, author) => current.find(b => b.title === title && (b.author || '') === (author || ''));
-
-    for (const s of data.sessions || []) {
-      const prev = await db.get('sessions', s.date);
-      if (!prev || prev.seconds < s.seconds) await db.put('sessions', s);
-    }
-    for (const s of data.settings || []) await db.put('settings', s);
-    let n = 0;
-    for (const h of data.highlights || []) {
-      const b = match(h.bookTitle, h.bookAuthor);
-      await db.put('highlights', { ...h, bookId: b ? b.id : null });
-      n++;
-    }
-    for (const m of data.bookmarks || []) {
-      const b = match(m.bookTitle, m.bookAuthor);
-      if (b) await db.put('bookmarks', { ...m, bookId: b.id });
-    }
-    for (const b of data.books || []) {
-      const local = match(b.title, b.author);
-      if (local && (b.percent || 0) > (local.percent || 0)) {
-        Object.assign(local, { cfi: b.cfi, percent: b.percent, lastOpened: b.lastOpened });
-        await db.put('books', local);
-      }
-    }
-    toastFn(`Respaldo restaurado: ${n} ideas`);
+    toastFn('Restaurando libros y datos…', 10000);
+    const result = await restoreBackup(file);
+    toastFn(result.legacy
+      ? `Respaldo antiguo restaurado: ${result.ideas} ideas. Los libros se añaden por separado.`
+      : `Respaldo restaurado: ${result.books} ${result.books === 1 ? 'libro' : 'libros'} y ${result.ideas} ${result.ideas === 1 ? 'idea' : 'ideas'}`, 5000);
   } catch (e) {
     console.error(e);
-    toastFn('No pude leer ese respaldo');
-  }
+    toastFn('No pude restaurar el respaldo. Revisa el archivo y el espacio disponible.', 5000);
+  } finally { backupBusy = false; }
 }
 
 async function shareOrDownload(files, title) {
   try {
     if (navigator.canShare?.({ files })) {
-      // Sin título: el iPhone lo guardaría como un .txt aparte junto al archivo
+      // Sin título: el iPhone lo guardaría como un .txt aparte junto al archivo.
       await navigator.share({ files });
       return true;
     }

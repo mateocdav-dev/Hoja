@@ -50,6 +50,44 @@ export const db = {
   all: (store) => run(store, 'readonly', s => s.getAll()),
   put: (store, value) => run(store, 'readwrite', s => s.put(value)),
   del: (store, key) => run(store, 'readwrite', s => s.delete(key)),
+  // Todas las escrituras del respaldo se confirman juntas o se revierten juntas.
+  async batch(records) {
+    if (!records.length) return;
+    const d = await open();
+    return new Promise((resolve, reject) => {
+      const t = d.transaction([...new Set(records.map(r => r.store))], 'readwrite');
+      t.oncomplete = () => resolve();
+      t.onerror = t.onabort = () => reject(t.error || new Error('No se pudieron guardar los datos'));
+      try { for (const r of records) t.objectStore(r.store).put(r.value); }
+      catch (e) { t.abort(); reject(e); }
+    });
+  },
+  async snapshot(stores) {
+    const d = await open();
+    return new Promise((resolve, reject) => {
+      const t = d.transaction(stores, 'readonly'), result = {};
+      for (const name of stores) {
+        const req = t.objectStore(name).getAll();
+        req.onsuccess = () => { result[name] = req.result; };
+      }
+      t.oncomplete = () => resolve(result);
+      t.onerror = t.onabort = () => reject(t.error);
+    });
+  },
+  async update(store, key, change) {
+    const d = await open();
+    return new Promise((resolve, reject) => {
+      const t = d.transaction(store, 'readwrite'), s = t.objectStore(store);
+      let value;
+      const req = s.get(key);
+      req.onsuccess = () => {
+        try { value = change(req.result); if (value) s.put(value); }
+        catch (e) { t.abort(); reject(e); }
+      };
+      t.oncomplete = () => resolve(value);
+      t.onerror = t.onabort = () => reject(t.error || new Error('No se pudo guardar'));
+    });
+  },
 };
 
 // Pide al navegador que no borre los datos (iOS lo respeta mejor si la app está instalada).

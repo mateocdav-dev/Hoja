@@ -9,7 +9,7 @@ App de lectura personal de Mateo para su **iPhone 14 Pro**. PWA instalable, sin 
 ## Stack y reglas
 - HTML + CSS + JS puro con módulos ES. **Sin build ni npm.** Librerías por CDN con versión fija: `jszip@3.10.1` y `epubjs@0.3.93` (jsdelivr).
 - Datos solo en el teléfono: IndexedDB (`db.js`, versión 2). Stores: `books`, `files` (EPUB), `locations`, `highlights`, `bookmarks`, `sessions`, `settings`.
-- **Cada cambio publicado debe subir `CACHE` en `sw.js`** (va en `hoja-v11`). Si no, el iPhone no se entera. La app busca versión nueva al volver a primer plano y con el gesto de jalar hacia abajo.
+- **Cada cambio publicado debe subir `CACHE` en `sw.js`** (va en `hoja-v13`). Si no, el iPhone no se entera. La app busca versión nueva al volver a primer plano y con el gesto de jalar hacia abajo.
 - Paleta: fondo `#F2EFEA`, acento verde `#8F9C70` (elegido por Mateo; el amarillo ya no se usa), tinta `#1E1E1E`. Modo noche inspirado en Duolingo: `#131F24`, `#202F36`, `#37464F`. Tipografías: Outfit (UI) y Literata (lectura). Las decisiones estéticas son de Mateo.
 
 ## Archivos
@@ -20,7 +20,9 @@ App de lectura personal de Mateo para su **iPhone 14 Pro**. PWA instalable, sin 
 | `app.js` | Inicio, biblioteca, importar EPUB, navegación, modo, actualizaciones, jalar para refrescar, recordatorio de respaldo |
 | `reader.js` | Lector epub.js: paginado, gestos, temas por modo, subrayado, tiempo leído |
 | `nav.js` | Índice, marcadores y búsqueda (sin tildes) dentro del lector |
-| `ideas.js` | Subrayados, hoja de detalle, tarjetas, exportar a Obsidian (.md), respaldo JSON |
+| `ideas.js` | Subrayados, hoja de detalle, tarjetas, exportar a Obsidian (.md) y diálogo para guardar respaldos |
+| `backup.js` | ZIP completo con EPUB, portadas y datos; restauración validada y atómica; compatibilidad con JSON v1 |
+| `progress.js` | Migración de sesiones antiguas, meta por día y días cumplidos permanentes |
 | `growth.js` | Racha, árbol SVG (1 hoja por cada 7 días seguidos), estadísticas, meta diaria |
 | `graph.js` | Mapa de ideas con fuerzas propias (sin d3) |
 | `theme.js` | Modo automático / noche / claro |
@@ -44,8 +46,11 @@ App de lectura personal de Mateo para su **iPhone 14 Pro**. PWA instalable, sin 
   - En la raíz, los EPUB **con portada** ilustrada.
   - En `Sin portada\`, los originales; no los modifiques.
   - En `Portadas\`, las imágenes.
-  - En `Backups\`, los respaldos JSON de la app, con la fecha en el nombre.
+  - En `Backups\`, los respaldos de la app con fecha, día y hora en el nombre.
+- Al compartir en iPhone, enviar solo `files`, sin `title`: el título produce un archivo .txt adicional.
 
 ## Pendientes / ideas
+- Respaldo v13: ZIP con fecha, día y hora; destino manual por elección de Mateo. Carpeta habitual: `I:\My Drive\02 PROYECTOS\06. BOOKS\Backups`. Sin OAuth ni conexión directa con Drive.
+- Las metas nuevas no recalculan días anteriores; si hoy ya tiene lectura registrada, rigen mañana. Se conservan las hojas ganadas al cambiar de meta.
 - Confirmar en el iPhone: barra de estado en modo noche, rendimiento del EPUB de 40 MB (*Mente millonaria*) y el ícono nuevo tras reinstalar.
 - Posibles mejoras: gestionar etiquetas, renombrar o editar libros, estadísticas por libro, notificación de recordatorio diario.

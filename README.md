@@ -16,8 +16,9 @@ Lector de libros personal para iPhone. Es una web app instalable (PWA): se abre 
 **Crecer**
 - Árbol que gana una hoja por cada 7 días seguidos de lectura (las hojas no se pierden).
 - Racha, mejor racha, días leídos, tiempo total y meta diaria ajustable (5–30 min).
+- Cada día conserva su meta y las hojas ganadas. Si ya leíste hoy, una nueva meta se aplica mañana.
 - Mapa de ideas estilo Obsidian: frases conectadas por libro y por #etiqueta.
-- Respaldo: guardar y restaurar, con recordatorio semanal en Inicio.
+- Respaldo completo ZIP: incluye los EPUB, portadas, posición, subrayados, notas, marcadores, rachas y ajustes del lector. Con recordatorio semanal en Inicio.
 
 **Actualizaciones**: se actualiza sola al volver a la app, o jalando hacia abajo en Inicio.
 
@@ -59,5 +60,15 @@ Si tienes un PDF, conviértelo a EPUB con [Calibre](https://calibre-ebook.com) (
 | `scripts/` | Generan íconos, el EPUB de prueba y el servidor local |
 
 ## Ojo
+
+### Guardar y recuperar un respaldo
+1. En **Crecer → Tus datos → Guardar respaldo**, espera a que se prepare el archivo.
+2. Toca **Guardar archivo** y elige el destino en Archivos o Drive. En el computador puedes descargarlo.
+3. Cada copia lleva fecha, día y hora locales: `hoja-respaldo-2026-11-09_lunes_14-35-12.zip`. La carpeta de Mateo en el computador es `I:\My Drive\02 PROYECTOS\06. BOOKS\Backups`; desde el iPhone se elige su equivalente en Drive manualmente.
+4. Para recuperar todo, elige ese ZIP en **Restaurar respaldo**. No hace falta descomprimirlo ni volver a importar los EPUB. Se conserva la lectura y las notas locales más recientes.
+5. Se admiten los JSON antiguos, que solo contienen datos: para esos respaldos hay que añadir los EPUB antes de restaurar si se quiere recuperar el enlace a cada libro.
+
+El archivo se valida antes de escribir y la restauración se guarda en una sola operación: un fallo no deja media biblioteca restaurada. Los libros grandes pueden tardar unos segundos y requieren espacio disponible. Cada respaldo es manual; no existe sincronización automática con Drive.
+
 - iOS puede borrar datos de webs que no usas en semanas; instalada en la pantalla de inicio es mucho más estable. Guarda un respaldo de vez en cuando (Ideas → ···).
 - Solo EPUB sin DRM. Los libros comprados en Apple Books o Kindle traen DRM y no abren aquí.

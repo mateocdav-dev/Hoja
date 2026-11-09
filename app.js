@@ -4,6 +4,7 @@ import { Reader } from './reader.js';
 import { initIdeaSheet, renderIdeas, setToast, exportMarkdown, exportBackup, importBackup, openIdeaSheet } from './ideas.js';
 import { getGoal, readDaysFrom, streakInfo, renderGrowth, ago } from './growth.js';
 import { renderGraph } from './graph.js';
+import { initializeProgress } from './progress.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -115,7 +116,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', async
 // ---------- inicio ----------
 async function renderHome() {
   let books = [], sessions = [], goal = 10;
-  try { [books, sessions, goal] = await Promise.all([db.all('books'), db.all('sessions'), getGoal()]); }
+  try { await initializeProgress(); [books, sessions, goal] = await Promise.all([db.all('books'), db.all('sessions'), getGoal()]); }
   catch (e) { console.error(e); toast('No pude leer la biblioteca de este dispositivo'); }
 
   const readDays = readDaysFrom(sessions, goal);

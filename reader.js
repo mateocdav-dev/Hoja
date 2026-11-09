@@ -3,6 +3,7 @@ import { db, dayKey, getSetting, setSetting } from './db.js';
 import { HIGHLIGHT, addHighlight, highlightsFor, openIdeaSheet } from './ideas.js';
 import { isDark, appBg } from './theme.js';
 import { installNav } from './nav.js';
+import { recordReading } from './progress.js';
 
 const THEMES = {
   crema:  { bg: '#F2EFEA', fg: '#2A2622', link: '#9A6B1E' },
@@ -335,11 +336,7 @@ export class Reader {
     if (!secs || !this.id) return;
     this.pendingSeconds = 0;
     try {
-      const key = dayKey();
-      const rec = (await db.get('sessions', key)) || { date: key, seconds: 0, books: [] };
-      rec.seconds += secs;
-      if (!rec.books.includes(this.id)) rec.books.push(this.id);
-      await db.put('sessions', rec);
+      await recordReading(secs, this.id);
     } catch (e) { console.warn('No se pudo guardar el tiempo', e); }
   }
 
