@@ -1,0 +1,267 @@
+// Lector EPUB sobre epub.js: paginado, % de avance, temas, tamaño de letra y tiempo leído.
+import { db, dayKey, getSetting, setSetting } from './db.js';
+
+const THEMES = {
+  crema:  { bg: '#F6F0E4', fg: '#2A2622', link: '#9A6B1E' },
+  blanco: { bg: '#FFFFFF', fg: '#1E1E1E', link: '#9A6B1E' },
+  noche:  { bg: '#1B1A17', fg: '#E8E2D6', link: '#FDB92E' },
+};
+const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&display=swap';
+const IDLE_LIMIT = 5 * 60 * 1000; // sin pasar página en 5 min ya no cuenta como lectura
+
+const $ = s => document.querySelector(s);
+
+export class Reader {
+  constructor({ onClose }) {
+    this.onClose = onClose;
+    this.el = $('#reader');
+    this.prefs = { theme: 'crema', fontSize: 100 };
+    this.pendingSeconds = 0;
+
+    $('#r-back').addEventListener('click', () => this.close());
+    $('#r-settings').addEventListener('click', () => this.toggleSheet(true));
+    $('#r-backdrop').addEventListener('click', () => this.toggleSheet(false));
+    $('#fs-down').addEventListener('click', () => this.setFontSize(this.prefs.fontSize - 10));
+    $('#fs-up').addEventListener('click', () => this.setFontSize(this.prefs.fontSize + 10));
+    document.querySelectorAll('.sw').forEach(b =>
+      b.addEventListener('click', () => this.setTheme(b.dataset.theme)));
+
+    document.addEventListener('keydown', e => this.onKey(e));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { this.flushTime(); this.saveProgress(); }
+    });
+  }
+
+  get isOpen() { return !this.el.hidden; }
+
+  async open(id) {
+    if (this.isOpen) await this.close(true);
+    const [rec, file] = await Promise.all([db.get('books', id), db.get('files', id)]);
+    if (!rec || !file) throw new Error('Libro no encontrado');
+
+    this.id = id;
+    this.rec = rec;
+    this.prefs = await getSetting('reader', this.prefs);
+    this.el.hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('#r-title').textContent = rec.title;
+    $('#r-loading').hidden = false;
+    this.paintProgress(rec.percent || 0, '');
+    this.applyChrome();
+
+    rec.lastOpened = Date.now();
+    db.put('books', rec);
+
+    this.book = ePub(file.data.slice(0));
+    this.rendition = this.book.renderTo('r-view', {
+      width: '100%', height: '100%',
+      flow: 'paginated', spread: 'none',
+      allowScriptedContent: false,
+    });
+
+    for (const [name, t] of Object.entries(THEMES)) {
+      this.rendition.themes.register(name, {
+        'html, body': { background: `${t.bg} !important`, color: `${t.fg} !important` },
+        'body': {
+          'font-family': "'Literata', Georgia, serif !important",
+          'line-height': '1.62 !important',
+          '-webkit-text-size-adjust': '100%',
+        },
+        'p, li, div, span, blockquote, h1, h2, h3, h4, h5, h6': { color: 'inherit !important' },
+        'p': { 'text-align': 'left' },
+        'a': { color: `${t.link} !important` },
+        'img': { 'max-width': '100% !important' },
+      });
+    }
+    this.rendition.hooks.content.register(contents => {
+      contents.addStylesheet(FONT_CSS).catch?.(() => {});
+    });
+
+    this.bindGestures();
+    this.rendition.on('relocated', loc => this.onRelocated(loc));
+
+    this.rendition.themes.select(this.prefs.theme);
+    this.rendition.themes.fontSize(this.prefs.fontSize + '%');
+
+    await this.book.ready;
+    this.toc = flattenToc(this.book.navigation?.toc || []);
+
+    const saved = await db.get('locations', id);
+    if (saved?.data) {
+      this.book.locations.load(saved.data);
+    }
+    await this.rendition.display(rec.cfi || undefined);
+    $('#r-loading').hidden = true;
+    this.lastActivity = Date.now();
+
+    if (!saved?.data) {
+      // Se calcula una sola vez por libro y se guarda.
+      this.book.locations.generate(1600).then(() => {
+        if (!this.book) return;
+        db.put('locations', { id, data: this.book.locations.save() });
+        const loc = this.rendition.currentLocation();
+        if (loc?.start) this.onRelocated(loc);
+      }).catch(() => {});
+    }
+
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.tick(), 15000);
+  }
+
+  bindGestures() {
+    let sx = 0, sy = 0, st = 0;
+    this.rendition.on('touchstart', e => {
+      const t = e.changedTouches[0]; sx = t.screenX; sy = t.screenY; st = Date.now();
+    });
+    this.rendition.on('touchend', e => {
+      const t = e.changedTouches[0];
+      const dx = t.screenX - sx, dy = t.screenY - sy;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4 && Date.now() - st < 700) {
+        this.swiped = true;
+        setTimeout(() => { this.swiped = false; }, 400);
+        dx < 0 ? this.next() : this.prev();
+      }
+    });
+    this.rendition.on('click', e => {
+      if (this.swiped) return;
+      const sel = e.view?.getSelection?.();
+      if (sel && sel.toString().trim()) return; // está seleccionando texto
+      const frame = e.view?.frameElement?.getBoundingClientRect();
+      const x = (frame ? frame.left : 0) + e.clientX;
+      const w = window.innerWidth;
+      if (x < w * 0.3) this.prev();
+      else if (x > w * 0.7) this.next();
+    });
+    this.rendition.on('keyup', e => this.onKey(e));
+  }
+
+  onKey(e) {
+    if (!this.isOpen || !this.rendition) return;
+    if (e.key === 'ArrowRight') this.next();
+    if (e.key === 'ArrowLeft') this.prev();
+    if (e.key === 'Escape') this.toggleSheet(false);
+  }
+
+  next() { this.rendition?.next(); }
+  prev() { this.rendition?.prev(); }
+
+  onRelocated(loc) {
+    if (!loc?.start) return;
+    this.lastActivity = Date.now();
+    this.cfi = loc.start.cfi;
+    let pct = null;
+    try {
+      if (this.book.locations.length()) pct = this.book.locations.percentageFromCfi(this.cfi);
+    } catch {}
+    if (loc.atEnd) pct = 1;
+    if (pct != null) this.percent = pct;
+
+    const chapter = this.chapterFor(loc.start.href);
+    const page = loc.start.displayed;
+    const left = page ? page.total - page.page : 0;
+    const label = [chapter, left > 0 ? `${left} pág. para terminar el capítulo` : ''].filter(Boolean).join(' · ');
+    this.paintProgress(this.percent ?? this.rec.percent ?? 0, label);
+
+    clearTimeout(this.saveT);
+    this.saveT = setTimeout(() => this.saveProgress(), 600);
+  }
+
+  chapterFor(href) {
+    if (!href || !this.toc) return '';
+    const base = href.split('#')[0];
+    const hit = this.toc.find(i => i.href.split('#')[0].endsWith(base) || base.endsWith(i.href.split('#')[0]));
+    return hit ? hit.label.trim() : '';
+  }
+
+  paintProgress(pct, label) {
+    const p = Math.round((pct || 0) * 100);
+    $('#r-pct').textContent = p + '%';
+    $('#r-bar').style.width = p + '%';
+    $('#r-chapter').textContent = label || '';
+  }
+
+  async saveProgress() {
+    if (!this.id || !this.cfi) return;
+    try {
+      const rec = await db.get('books', this.id);
+      if (!rec) return;
+      rec.cfi = this.cfi;
+      if (this.percent != null) rec.percent = this.percent;
+      rec.lastOpened = Date.now();
+      await db.put('books', rec);
+      this.rec = rec;
+    } catch (e) { console.warn('No se pudo guardar el avance', e); }
+  }
+
+  tick() {
+    if (!this.isOpen || document.visibilityState !== 'visible') return;
+    if (Date.now() - (this.lastActivity || 0) > IDLE_LIMIT) return;
+    this.pendingSeconds += 15;
+    if (this.pendingSeconds >= 60) this.flushTime();
+  }
+
+  async flushTime() {
+    const secs = this.pendingSeconds;
+    if (!secs || !this.id) return;
+    this.pendingSeconds = 0;
+    try {
+      const key = dayKey();
+      const rec = (await db.get('sessions', key)) || { date: key, seconds: 0, books: [] };
+      rec.seconds += secs;
+      if (!rec.books.includes(this.id)) rec.books.push(this.id);
+      await db.put('sessions', rec);
+    } catch (e) { console.warn('No se pudo guardar el tiempo', e); }
+  }
+
+  toggleSheet(show) {
+    $('#r-sheet').hidden = !show;
+    $('#r-backdrop').hidden = !show;
+    if (show) this.applyChrome();
+  }
+
+  setFontSize(v) {
+    this.prefs.fontSize = Math.max(80, Math.min(160, v));
+    this.rendition?.themes.fontSize(this.prefs.fontSize + '%');
+    setSetting('reader', this.prefs);
+    this.applyChrome();
+  }
+
+  setTheme(name) {
+    if (!THEMES[name]) return;
+    this.prefs.theme = name;
+    this.rendition?.themes.select(name);
+    setSetting('reader', this.prefs);
+    this.applyChrome();
+  }
+
+  applyChrome() {
+    this.el.className = 'reader t-' + this.prefs.theme;
+    $('#fs-val').textContent = this.prefs.fontSize + '%';
+    document.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.theme === this.prefs.theme));
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = this.isOpen ? THEMES[this.prefs.theme].bg : '#F2EFEA';
+  }
+
+  async close(silent = false) {
+    clearInterval(this.timer);
+    clearTimeout(this.saveT);
+    await this.flushTime();
+    await this.saveProgress();
+    this.toggleSheet(false);
+    try { this.rendition?.destroy(); } catch {}
+    try { this.book?.destroy(); } catch {}
+    this.rendition = null; this.book = null; this.cfi = null; this.percent = null;
+    this.el.hidden = true;
+    document.body.style.overflow = '';
+    this.applyChrome();
+    if (!silent) this.onClose?.();
+  }
+}
+
+function flattenToc(items, out = []) {
+  for (const i of items) {
+    out.push({ href: i.href || '', label: i.label || '' });
+    if (i.subitems?.length) flattenToc(i.subitems, out);
+  }
+  return out;
+}

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F2EFEA">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Hoja">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <title>Hoja</title>
+</head>
+<body>
+  <main id="app">
+    <!-- INICIO -->
+    <section id="view-inicio" class="view active">
+      <header class="hello">
+        <div>
+          <p class="date" id="today"></p>
+          <h1>Hola, Mateo</h1>
+        </div>
+        <div class="streak" id="streak" title="Días seguidos leyendo">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 21c0-6 3-10 8-12-1 6-4 10-8 12Zm0 0c0-5-2.5-8.5-7-10 .5 5 3 8.5 7 10Z" fill="#8BA23A"/></svg>
+          <span id="streak-n">0</span>
+        </div>
+      </header>
+
+      <div class="week" id="week"></div>
+
+      <div id="continue"></div>
+
+      <div class="section-head">
+        <h2>Biblioteca</h2>
+        <span class="count" id="lib-count"></span>
+      </div>
+      <div class="library" id="library"></div>
+    </section>
+
+    <!-- IDEAS -->
+    <section id="view-ideas" class="view">
+      <header class="page-head"><h1>Ideas</h1></header>
+      <div class="soon soon-lilac">
+        <h3>Tus frases vivirán aquí</h3>
+        <p>Pronto podrás subrayar mientras lees, guardar frases, escribir notas y fijar las ideas que más te muevan.</p>
+        <span class="chip">Fase 2</span>
+      </div>
+    </section>
+
+    <!-- CRECER -->
+    <section id="view-crecer" class="view">
+      <header class="page-head"><h1>Crecer</h1></header>
+      <div class="soon soon-mint">
+        <svg class="sprout" viewBox="0 0 120 120" aria-hidden="true">
+          <ellipse cx="60" cy="104" rx="34" ry="8" fill="#6E4335" opacity=".25"/>
+          <path d="M60 104V62" stroke="#6E4335" stroke-width="5" stroke-linecap="round"/>
+          <path d="M60 70c-4-18-18-26-34-24 2 16 14 26 34 24Z" fill="#8BA23A"/>
+          <path d="M60 62c4-20 18-30 36-28-2 18-16 30-36 28Z" fill="#A9BF52"/>
+        </svg>
+        <h3>Tu planta está por brotar</h3>
+        <p>Cada 7 días seguidos de lectura le crecerá una hoja nueva, hasta volverse árbol.</p>
+        <span class="chip">Fase 3</span>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Navegación">
+    <button class="tab active" data-tab="inicio">
+      <svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1Z"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button class="tab" data-tab="leer">
+      <svg viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5m0-13C14 5 17 4.5 20 5v13c-3-.5-6 0-8 1.5m0-13v13"/></svg>
+      <span>Leer</span>
+    </button>
+    <button class="fab" id="fab" aria-label="Añadir libro">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="tab" data-tab="ideas">
+      <svg viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3Z"/></svg>
+      <span>Ideas</span>
+    </button>
+    <button class="tab" data-tab="crecer">
+      <svg viewBox="0 0 24 24"><path d="M12 21v-9m0 0c0-4-3-7-7-7 0 4 3 7 7 7Zm0 0c0-4 3-7 7-7 0 4-3 7-7 7Z"/></svg>
+      <span>Crecer</span>
+    </button>
+  </nav>
+
+  <input type="file" id="file" accept=".epub,application/epub+zip" hidden>
+
+  <!-- LECTOR -->
+  <div id="reader" class="reader t-crema" hidden>
+    <header class="r-top">
+      <button class="r-btn" id="r-back" aria-label="Volver">
+        <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
+      </button>
+      <div class="r-title" id="r-title"></div>
+      <button class="r-btn" id="r-settings" aria-label="Ajustes de lectura"><span class="aa">Aa</span></button>
+    </header>
+    <div id="r-view"></div>
+    <div class="r-loading" id="r-loading">Abriendo libro…</div>
+    <footer class="r-bottom">
+      <div class="r-meta"><span id="r-chapter"></span><span id="r-pct">0%</span></div>
+      <div class="bar"><i id="r-bar"></i></div>
+    </footer>
+
+    <div class="sheet-backdrop" id="r-backdrop" hidden></div>
+    <div class="sheet" id="r-sheet" hidden>
+      <div class="grab"></div>
+      <div class="row">
+        <span>Tamaño de letra</span>
+        <div class="stepper">
+          <button id="fs-down" aria-label="Letra más pequeña">A−</button>
+          <b id="fs-val">100%</b>
+          <button id="fs-up" aria-label="Letra más grande">A+</button>
+        </div>
+      </div>
+      <div class="row">
+        <span>Tema</span>
+        <div class="swatches">
+          <button data-theme="crema" class="sw sw-crema" aria-label="Crema"></button>
+          <button data-theme="blanco" class="sw sw-blanco" aria-label="Blanco"></button>
+          <button data-theme="noche" class="sw sw-noche" aria-label="Noche"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
