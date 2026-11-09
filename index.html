@@ -54,6 +54,8 @@
 
       <div id="continue"></div>
 
+      <div id="nudge"></div>
+
       <div class="section-head">
         <h2>Biblioteca</h2>
         <span class="count" id="lib-count"></span>
@@ -88,17 +90,11 @@
     <!-- CRECER -->
     <section id="view-crecer" class="view">
       <header class="page-head"><h1>Crecer</h1></header>
-      <div class="soon soon-mint">
-        <svg class="sprout" viewBox="0 0 120 120" aria-hidden="true">
-          <ellipse cx="60" cy="104" rx="34" ry="8" fill="#6E4335" opacity=".25"/>
-          <path d="M60 104V62" stroke="#6E4335" stroke-width="5" stroke-linecap="round"/>
-          <path d="M60 70c-4-18-18-26-34-24 2 16 14 26 34 24Z" fill="#8BA23A"/>
-          <path d="M60 62c4-20 18-30 36-28-2 18-16 30-36 28Z" fill="#A9BF52"/>
-        </svg>
-        <h3>Tu planta está por brotar</h3>
-        <p>Cada 7 días seguidos de lectura le crecerá una hoja nueva, hasta volverse árbol.</p>
-        <span class="chip">Fase 3</span>
-      </div>
+      <div id="growth"></div>
+      <div class="section-head"><h2>Mapa de ideas</h2><span class="count" id="graph-count"></span></div>
+      <div class="graph-card" id="graph"></div>
+      <div class="section-head"><h2>Tus datos</h2></div>
+      <div class="data-card" id="data-card"></div>
     </section>
   </main>
 
@@ -132,7 +128,10 @@
       <button class="r-btn" id="r-back" aria-label="Volver">
         <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
       </button>
-      <div class="r-title" id="r-title"></div>
+      <div class="r-title"><span id="r-title"></span><svg class="ribbon" id="r-ribbon" viewBox="0 0 24 24" hidden><path d="M6 3h12v18l-6-4-6 4Z"/></svg></div>
+      <button class="r-btn" id="r-nav" aria-label="Índice, marcadores y búsqueda">
+        <svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>
+      </button>
       <button class="r-btn" id="r-settings" aria-label="Ajustes de lectura"><span class="aa">Aa</span></button>
     </header>
     <div id="r-view"></div>
@@ -154,6 +153,25 @@
     </div>
 
     <div class="sheet-backdrop" id="r-backdrop" hidden></div>
+    <div class="sheet nav-sheet" id="r-nav-sheet" hidden>
+      <div class="grab"></div>
+      <div class="seg" id="nav-seg">
+        <button data-pane="toc" class="on">Índice</button>
+        <button data-pane="marks">Marcadores</button>
+        <button data-pane="search">Buscar</button>
+      </div>
+      <div class="nav-pane" data-pane="toc"><div class="nav-list" id="nav-toc"></div></div>
+      <div class="nav-pane" data-pane="marks" hidden>
+        <button class="pill wide" id="mark-toggle">Marcar esta página</button>
+        <div class="nav-list" id="nav-marks"></div>
+      </div>
+      <div class="nav-pane" data-pane="search" hidden>
+        <form id="search-form"><input id="search-q" type="search" placeholder="Buscar en el libro" enterkeyhint="search" autocomplete="off"></form>
+        <p class="search-status" id="search-status"></p>
+        <div class="nav-list" id="nav-results"></div>
+      </div>
+    </div>
+
     <div class="sheet" id="r-sheet" hidden>
       <div class="grab"></div>
       <div class="row">

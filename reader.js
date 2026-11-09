@@ -2,6 +2,7 @@
 import { db, dayKey, getSetting, setSetting } from './db.js';
 import { HIGHLIGHT, addHighlight, highlightsFor, openIdeaSheet } from './ideas.js';
 import { isDark, appBg } from './theme.js';
+import { installNav } from './nav.js';
 
 const THEMES = {
   crema:  { bg: '#F2EFEA', fg: '#2A2622', link: '#9A6B1E' },
@@ -24,7 +25,7 @@ export class Reader {
 
     $('#r-back').addEventListener('click', () => this.close());
     $('#r-settings').addEventListener('click', () => this.toggleSheet(true));
-    $('#r-backdrop').addEventListener('click', () => this.toggleSheet(false));
+    $('#r-backdrop').addEventListener('click', () => { this.toggleSheet(false); this.toggleNav(false); });
     $('#fs-down').addEventListener('click', () => this.setFontSize(this.prefs.fontSize - 10));
     $('#fs-up').addEventListener('click', () => this.setFontSize(this.prefs.fontSize + 10));
     document.querySelectorAll('.sw').forEach(b =>
@@ -34,6 +35,7 @@ export class Reader {
     $('#r-next').addEventListener('click', () => this.next());
     $('#sel-note').addEventListener('click', () => this.saveSelection(true));
 
+    installNav(this);
     document.addEventListener('keydown', e => this.onKey(e));
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') { this.flushTime(); this.saveProgress(); }
@@ -123,6 +125,8 @@ export class Reader {
     $('#r-loading').hidden = true;
     this.highlights = await highlightsFor(id);
     this.highlights.forEach(h => this.paint(h));
+    await this.loadBookmarks();
+    this.paintRibbon();
     this.lastActivity = Date.now();
 
     if (!saved?.data) {
@@ -192,7 +196,7 @@ export class Reader {
     if (!this.isOpen || !this.rendition) return;
     if (e.key === 'ArrowRight') this.next();
     if (e.key === 'ArrowLeft') this.prev();
-    if (e.key === 'Escape') this.toggleSheet(false);
+    if (e.key === 'Escape') { this.toggleSheet(false); this.toggleNav(false); }
   }
 
   // ---------- subrayados ----------
@@ -273,6 +277,7 @@ export class Reader {
     const chapter = this.chapterFor(loc.start.href);
     this.chapter = chapter;
     this.showSelBar(false);
+    this.paintRibbon?.();
     const page = loc.start.displayed;
     const left = page ? page.total - page.page : 0;
     const label = [chapter, left > 0 ? `${left} pág. para terminar el capítulo` : ''].filter(Boolean).join(' · ');
@@ -371,7 +376,9 @@ export class Reader {
     await this.flushTime();
     await this.saveProgress();
     this.toggleSheet(false);
+    this.toggleNav(false);
     this.showSelBar(false);
+    this.bookmarks = [];
     this.highlights = [];
     try { this.rendition?.destroy(); } catch {}
     try { this.book?.destroy(); } catch {}
@@ -384,10 +391,10 @@ export class Reader {
   }
 }
 
-function flattenToc(items, out = []) {
+function flattenToc(items, out = [], depth = 0) {
   for (const i of items) {
-    out.push({ href: i.href || '', label: i.label || '' });
-    if (i.subitems?.length) flattenToc(i.subitems, out);
+    out.push({ href: i.href || '', label: i.label || '', depth });
+    if (i.subitems?.length) flattenToc(i.subitems, out, depth + 1);
   }
   return out;
 }

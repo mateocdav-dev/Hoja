@@ -1,7 +1,9 @@
-import { db, dayKey, askPersistence } from './db.js';
+import { db, dayKey, askPersistence, getSetting, setSetting } from './db.js';
 import { applyMode, cycleMode } from './theme.js';
 import { Reader } from './reader.js';
-import { initIdeaSheet, renderIdeas, setToast, exportMarkdown, exportBackup, importBackup } from './ideas.js';
+import { initIdeaSheet, renderIdeas, setToast, exportMarkdown, exportBackup, importBackup, openIdeaSheet } from './ideas.js';
+import { getGoal, readDaysFrom, streakInfo, renderGrowth, ago } from './growth.js';
+import { renderGraph } from './graph.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -44,6 +46,7 @@ function setTab(name) {
   returnTab = name;
   $('#ideas-menu').hidden = true;
   if (name === 'ideas') showIdeas();
+  if (name === 'crecer') showGrowth();
   window.scrollTo(0, 0);
 }
 
@@ -88,11 +91,11 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', async
 
 // ---------- inicio ----------
 async function renderHome() {
-  let books = [], sessions = [];
-  try { [books, sessions] = await Promise.all([db.all('books'), db.all('sessions')]); }
+  let books = [], sessions = [], goal = 10;
+  try { [books, sessions, goal] = await Promise.all([db.all('books'), db.all('sessions'), getGoal()]); }
   catch (e) { console.error(e); toast('No pude leer la biblioteca de este dispositivo'); }
 
-  const readDays = new Set(sessions.filter(s => s.seconds >= 60).map(s => s.date));
+  const readDays = readDaysFrom(sessions, goal);
   const now = new Date();
 
   $('#today').textContent = now.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -108,11 +111,8 @@ async function renderHome() {
   }).join('');
 
   // Racha: días seguidos hasta hoy (si hoy aún no lee, cuenta hasta ayer)
-  let streak = 0;
-  const d = new Date(now);
-  if (!readDays.has(dayKey(d))) d.setDate(d.getDate() - 1);
-  while (readDays.has(dayKey(d))) { streak++; d.setDate(d.getDate() - 1); }
-  $('#streak-n').textContent = streak;
+  $('#streak-n').textContent = streakInfo(readDays).current;
+  renderNudge(books);
 
   // Sigue leyendo
   const last = books.filter(b => b.lastOpened).sort((a, b) => b.lastOpened - a.lastOpened)[0];
@@ -240,6 +240,45 @@ async function importBook(file, progressMsg = 'Añadiendo libro…', single = tr
     try { book?.destroy(); } catch {}
   }
 }
+
+// ---------- crecer ----------
+const showGrowth = async () => {
+  try {
+    await renderGrowth({ onGoalChange: renderHome });
+    await renderGraph($('#graph'), {
+      countEl: $('#graph-count'),
+      onOpen: h => openIdeaSheet(h, { onChange: showGrowth, onDelete: showGrowth, onGoTo: h.bookId ? goToIdea : null }),
+    });
+  } catch (err) { console.error(err); toast('No pude cargar Crecer'); }
+};
+$('#data-card').addEventListener('click', async e => {
+  const b = e.target.closest('[data-action]');
+  if (!b) return;
+  if (b.dataset.action === 'backup') { await exportBackup(); showGrowth(); renderHome(); }
+  if (b.dataset.action === 'restore') $('#backup-file').click();
+});
+
+// ---------- recordatorio de respaldo (cada 7 días si hay algo que perder) ----------
+async function renderNudge(books) {
+  const el = $('#nudge');
+  try {
+    const [last, snooze, hs] = await Promise.all([getSetting('lastBackup', null), getSetting('backupSnooze', 0), db.all('highlights')]);
+    const hasData = hs.length > 0 || books.some(b => (b.percent || 0) > 0.02);
+    const due = !last || Date.now() - last > 7 * 864e5;
+    if (!hasData || !due || Date.now() < snooze) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="nudge">
+      <div><b>Guarda un respaldo</b><span>${last ? 'Último: ' + ago(last) : 'Aún no has guardado ninguno'}. Así no pierdes tus ideas ni tu racha.</span></div>
+      <div class="nudge-actions"><button class="pill" data-nudge="later">Luego</button><button class="btn" data-nudge="save">Guardar</button></div>
+    </div>`;
+  } catch { el.innerHTML = ''; }
+}
+$('#nudge').addEventListener('click', async e => {
+  const b = e.target.closest('[data-nudge]');
+  if (!b) return;
+  if (b.dataset.nudge === 'later') await setSetting('backupSnooze', Date.now() + 3 * 864e5);
+  else await exportBackup();
+  renderHome();
+});
 
 // ---------- modo claro / noche ----------
 const MODE_LABEL = { auto: 'Automático: sigue al sistema', dark: 'Modo noche', light: 'Modo claro' };

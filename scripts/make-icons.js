@@ -1,4 +1,4 @@
-// Genera los íconos de la app: hoja crema con nervadura café sobre fondo verde.
+// (Antiguo) Genera el ícono de la hoja sobre fondo verde. Los íconos actuales salen de una ilustración (covers-work/icon); no ejecutar sin querer volver al ícono viejo.
 // Uso: node scripts/make-icons.js
 const fs = require('fs');
 const path = require('path');

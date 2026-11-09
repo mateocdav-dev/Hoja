@@ -4,12 +4,13 @@
 // locations: ubicaciones precalculadas del libro (para el % de avance)
 // highlights, sessions, settings
 const DB_NAME = 'hoja';
-const VERSION = 1;
+const VERSION = 2;
 const STORES = {
   books: { keyPath: 'id' },
   files: { keyPath: 'id' },
   locations: { keyPath: 'id' },
   highlights: { keyPath: 'id', index: 'bookId' },
+  bookmarks: { keyPath: 'id', index: 'bookId' },
   sessions: { keyPath: 'date' },
   settings: { keyPath: 'key' },
 };

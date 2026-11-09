@@ -1,5 +1,5 @@
 // Ideas: subrayados, notas, fijadas, exportar a Obsidian y respaldo.
-import { db, dayKey } from './db.js';
+import { db, dayKey, setSetting } from './db.js';
 
 export const HIGHLIGHT = '#8F9C70';
 const CARD_COLORS = ['#F6D5CF', '#DCD3FB', '#CFE3B5', '#BFD3EC', '#FFE3A3', '#E9DCCB'];
@@ -178,15 +178,18 @@ export async function exportMarkdown() {
 
 // ---------- respaldo ----------
 export async function exportBackup() {
-  const [books, highlights, sessions, settings] = await Promise.all(
-    ['books', 'highlights', 'sessions', 'settings'].map(s => db.all(s)));
+  const [books, highlights, sessions, settings, bookmarks] = await Promise.all(
+    ['books', 'highlights', 'sessions', 'settings', 'bookmarks'].map(s => db.all(s)));
   const data = {
     app: 'hoja', version: 1, exported: new Date().toISOString(),
     books: books.map(({ cover, coverType, ...b }) => b), // sin portadas ni archivos: pesa poco
-    highlights, sessions, settings,
+    highlights, sessions, settings: settings.filter(s => s.key !== 'lastBackup' && s.key !== 'backupSnooze'), bookmarks,
   };
   const file = new File([JSON.stringify(data, null, 1)], `hoja-respaldo-${dayKey()}.json`, { type: 'application/json' });
-  await shareOrDownload([file], 'Respaldo de Hoja');
+  if (await shareOrDownload([file], 'Respaldo de Hoja')) {
+    await setSetting('lastBackup', Date.now());
+    toastFn('Respaldo guardado');
+  }
 }
 
 export async function importBackup(file) {
@@ -207,6 +210,10 @@ export async function importBackup(file) {
       await db.put('highlights', { ...h, bookId: b ? b.id : null });
       n++;
     }
+    for (const m of data.bookmarks || []) {
+      const b = match(m.bookTitle, m.bookAuthor);
+      if (b) await db.put('bookmarks', { ...m, bookId: b.id });
+    }
     for (const b of data.books || []) {
       const local = match(b.title, b.author);
       if (local && (b.percent || 0) > (local.percent || 0)) {
@@ -225,10 +232,10 @@ async function shareOrDownload(files, title) {
   try {
     if (navigator.canShare?.({ files })) {
       await navigator.share({ files, title });
-      return;
+      return true;
     }
   } catch (e) {
-    if (e.name === 'AbortError') return;
+    if (e.name === 'AbortError') return false;
   }
   for (const f of files) {
     const a = document.createElement('a');
@@ -237,4 +244,5 @@ async function shareOrDownload(files, title) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
+  return true;
 }

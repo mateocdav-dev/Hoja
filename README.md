@@ -2,19 +2,24 @@
 
 Lector de libros personal para iPhone. Es una web app instalable (PWA): se abre desde la pantalla de inicio como cualquier app y funciona sin internet. Tus libros y tu avance se guardan solo en tu teléfono.
 
-## Qué hace hoy (fases 0, 1 y 2)
-- Añadir libros EPUB con el botón **+**, con portada automática.
-- Biblioteca con portadas y % de avance; tarjeta «Sigue leyendo».
-- Lector paginado: toca el borde derecho/izquierdo o desliza para pasar página.
-- Barra de % de avance y páginas que faltan del capítulo.
-- Recuerda dónde ibas.
-- Tamaño de letra y temas crema, blanco y noche.
-- Semana con los días que leíste (≥ 1 min) y contador de racha.
-- Subrayar en verde: selecciona una frase → **Resaltar** o **Nota**. Toca un subrayado para editarlo.
-- Pestaña **Ideas**: tarjetas por libro, fijadas arriba, filtros, #etiquetas en las notas, «Ir al libro».
-- Menú ··· de Ideas: **Exportar a Obsidian** (una nota .md por libro), **Guardar respaldo** y **Restaurar respaldo**.
+## Qué hace hoy
+**Biblioteca y lector**
+- Añadir uno o varios EPUB con el botón **+**, con portada automática.
+- Lector paginado: toca los bordes, desliza o usa las flechas ‹ ›. Recuerda dónde ibas.
+- Índice de capítulos, marcadores y búsqueda dentro del libro (sin importar tildes), desde el botón ☰ del lector.
+- Tamaño de letra y temas; modo noche para toda la app (automático, noche o claro) con el botón junto a la racha.
 
-Próximas fases: planta/árbol de racha (3), grafo de ideas (4).
+**Ideas**
+- Subrayar en verde, notas con #etiquetas, ideas fijadas, filtros e «Ir al libro».
+- Exportar a Obsidian (una nota .md por libro).
+
+**Crecer**
+- Árbol que gana una hoja por cada 7 días seguidos de lectura (las hojas no se pierden).
+- Racha, mejor racha, días leídos, tiempo total y meta diaria ajustable (5–30 min).
+- Mapa de ideas estilo Obsidian: frases conectadas por libro y por #etiqueta.
+- Respaldo: guardar y restaurar, con recordatorio semanal en Inicio.
+
+**Actualizaciones**: se actualiza sola al volver a la app, o jalando hacia abajo en Inicio.
 
 ## Probar en el computador
 ```bash
@@ -28,7 +33,7 @@ Abre http://localhost:8642. Para probar sin buscar libros, añade `test/prueba.e
 3. En el iPhone abre esa dirección en **Safari** → botón **Compartir** → **Añadir a pantalla de inicio**.
 4. Abre Hoja desde el ícono (no desde Safari): así tus datos quedan en la app instalada.
 
-Para actualizar la app tras cambios: sube los archivos y cambia `CACHE = 'hoja-v1'` en `sw.js` a `hoja-v2` (y así sucesivamente). La app se actualiza al abrirla dos veces.
+Para publicar cambios: sube los archivos y aumenta la versión `CACHE` en `sw.js`. El teléfono la detecta solo al volver a la app o al jalar hacia abajo.
 
 ## Libros gratis y legales (EPUB)
 - [Standard Ebooks](https://standardebooks.org/ebooks): ediciones muy cuidadas (en inglés).
@@ -44,6 +49,11 @@ Si tienes un PDF, conviértelo a EPUB con [Calibre](https://calibre-ebook.com) (
 | `styles.css` | Colores, tipografía y formas |
 | `app.js` | Inicio, biblioteca, importar libros, navegación |
 | `reader.js` | Lector (epub.js), avance, temas, tiempo leído |
+| `nav.js` | Índice, marcadores y búsqueda del lector |
+| `ideas.js` | Subrayados, ideas, exportar a Obsidian y respaldo |
+| `growth.js` | Racha, árbol, estadísticas y meta diaria |
+| `graph.js` | Mapa de ideas |
+| `theme.js` | Modo claro / noche |
 | `db.js` | Base de datos local (IndexedDB) |
 | `sw.js` | Funciona sin internet |
 | `scripts/` | Generan íconos, el EPUB de prueba y el servidor local |

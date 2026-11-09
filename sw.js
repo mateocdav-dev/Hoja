@@ -1,7 +1,7 @@
 // Guarda la app en caché para que abra sin internet.
 // Al cambiar archivos de la app, sube la versión: el teléfono la detecta, descarga todo de nuevo
 // (sin usar copias viejas) y la app se recarga sola o muestra un aviso.
-const CACHE = 'hoja-v8';
+const CACHE = 'hoja-v9';
 const SHELL = [
   './',
   'index.html',
@@ -11,6 +11,9 @@ const SHELL = [
   'reader.js',
   'ideas.js',
   'theme.js',
+  'nav.js',
+  'growth.js',
+  'graph.js',
   'manifest.webmanifest',
   'icons/icon-180.png',
   'icons/icon-192.png',
