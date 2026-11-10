@@ -23,6 +23,8 @@ export class Reader {
     // Al cambiar el modo de la app, el lector cambia al tema elegido para ese modo
     window.addEventListener('hoja:mode', () => { if (this.rendition) this.applyTheme(); else this.applyChrome(); });
     this.pendingSeconds = 0;
+    this.mount = 0;
+    this.writeNumber = 0;
 
     $('#r-back').addEventListener('click', () => this.close());
     $('#r-settings').addEventListener('click', () => this.toggleSheet(true));
@@ -39,8 +41,46 @@ export class Reader {
     installNav(this);
     document.addEventListener('keydown', e => this.onKey(e));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') { this.flushTime(); this.saveProgress(); }
+      this.trace('visibilitychange', { visibility: document.visibilityState });
+      if (document.visibilityState === 'hidden') {
+        this.captureVisible('hidden');
+        this.saveProgress();
+        this.flushTime();
+      }
     });
+    window.addEventListener('pagehide', () => {
+      this.captureVisible('pagehide');
+      this.saveProgress();
+      this.flushTime();
+    });
+    window.addEventListener('pageshow', e => {
+      // Un regreso a primer plano no abre el libro ni restaura datos antiguos.
+      this.trace('pageshow', { persisted: e.persisted, mounted: !!this.rendition });
+    });
+  }
+
+  // Diagnóstico temporal opt-in: ?lecturaDebug=1 o sessionStorage.hojaReadingDebug = '1'.
+  trace(event, detail = {}) {
+    if (!new URLSearchParams(location.search).has('lecturaDebug') && sessionStorage.getItem('hojaReadingDebug') !== '1') return;
+    const entry = { event, time: new Date().toISOString(), mount: this.mount, bookId: this.id, cfi: this.cfi, ...detail };
+    const log = window.hojaReadingTrace ||= [];
+    log.push(entry);
+    if (log.length > 250) log.shift();
+    console.debug('[Hoja lectura]', entry);
+  }
+
+  containsCFI(loc, cfi) {
+    if (!loc?.start?.cfi || !loc?.end?.cfi || !cfi) return false;
+    try {
+      return this.rendition.epubcfi.compare(loc.start.cfi, cfi) <= 0 && this.rendition.epubcfi.compare(cfi, loc.end.cfi) <= 0;
+    } catch { return false; }
+  }
+
+  captureVisible(reason) {
+    if (!this.rendition || this.restoring) return;
+    // currentLocation consulta al manager; rendition.location puede esperar todavía un RAF.
+    const loc = this.rendition.currentLocation();
+    if (loc?.start?.cfi) this.onRelocated(loc, reason, true);
   }
 
   get isOpen() { return !this.el.hidden; }
@@ -49,9 +89,20 @@ export class Reader {
     if (this.isOpen) await this.close(true);
     const [rec, file] = await Promise.all([db.get('books', id), db.get('files', id)]);
     if (!rec || !file) throw new Error('Libro no encontrado');
+    // Registro pequeño y síncrono por si iOS suspendió IndexedDB antes de confirmar.
+    try {
+      const pending = JSON.parse(localStorage.getItem('hoja-position:' + id));
+      if (pending?.cfi && pending.lastOpened >= (rec.lastOpened || 0)) Object.assign(rec, pending);
+    } catch {}
 
     this.id = id;
     this.rec = rec;
+    const mount = ++this.mount;
+    this.restoring = true;
+    this.fontLoads = [];
+    this.cfi = cfi || rec.cfi || null;
+    this.percent = rec.percent || 0;
+    this.trace('mount', { restore: this.cfi });
     const savedPrefs = await getSetting('reader', {});
     this.prefs = {
       lightTheme: savedPrefs.lightTheme || (savedPrefs.theme && savedPrefs.theme !== 'noche' ? savedPrefs.theme : 'crema'),
@@ -65,9 +116,6 @@ export class Reader {
     $('#r-loading').hidden = false;
     this.paintProgress(rec.percent || 0, '');
     this.applyChrome();
-
-    rec.lastOpened = Date.now();
-    db.put('books', rec);
 
     this.book = ePub(file.data.slice(0));
     this.rendition = this.book.renderTo('r-view', {
@@ -100,7 +148,27 @@ export class Reader {
       });
     }
     this.rendition.hooks.content.register(contents => {
-      contents.addStylesheet(FONT_CSS).catch?.(() => {});
+      const fonts = (async () => {
+        // Esperar CSS y fuente antes de restaurar el pasaje. Límite para lectura sin conexión.
+        const loaded = await Promise.race([
+          (async () => {
+            await contents.addStylesheet(FONT_CSS);
+            await contents.document.fonts?.load("16px Literata");
+            await contents.document.fonts?.ready;
+            return true;
+          })().catch(() => false),
+          new Promise(resolve => setTimeout(() => resolve(false), 2500)),
+        ]);
+        if (!loaded) {
+          // No dejar que una fuente tardía repagine un pasaje ya restaurado.
+          contents.document.querySelectorAll('link').forEach(link => { if (link.href === FONT_CSS) link.remove(); });
+          const fallback = contents.document.createElement('style');
+          fallback.textContent = 'body { font-family: Georgia, serif !important; }';
+          contents.document.head.appendChild(fallback);
+        }
+        this.trace('fonts-ready', { loaded });
+      })();
+      this.fontLoads.push(fonts);
       this.attachTouch(contents);
       // Si el usuario deselecciona, se oculta la barra de subrayar
       contents.document.addEventListener('selectionchange', () => {
@@ -119,7 +187,7 @@ export class Reader {
     });
 
     this.bindGestures();
-    this.rendition.on('relocated', loc => this.onRelocated(loc));
+    this.rendition.on('relocated', loc => { if (this.mount === mount) this.onRelocated(loc); });
 
     this.rendition.themes.select(this.theme);
     this.rendition.themes.fontSize(this.prefs.fontSize + '%');
@@ -131,7 +199,19 @@ export class Reader {
     if (saved?.data) {
       this.book.locations.load(saved.data);
     }
-    await this.rendition.display(cfi || rec.cfi || undefined);
+    const target = this.cfi;
+    await this.rendition.display(target || undefined);
+    // Los hooks de contenido se disparan después de display en epub.js 0.3.93.
+    await this.rendition.q.enqueue(() => {});
+    await Promise.all(this.fontLoads);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (target) await this.rendition.display(target);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (this.mount !== mount) return;
+    this.restoring = false;
+    const initial = this.rendition.currentLocation();
+    this.onRelocated(initial, 'restored');
+    this.trace('restored', { target, visible: initial?.start?.cfi });
     $('#r-loading').hidden = true;
     this.highlights = await highlightsFor(id);
     this.highlights.forEach(h => this.paint(h));
@@ -141,11 +221,11 @@ export class Reader {
 
     if (!saved?.data) {
       // Se calcula una sola vez por libro y se guarda.
-      this.book.locations.generate(1600).then(() => {
-        if (!this.book) return;
-        db.put('locations', { id, data: this.book.locations.save() });
-        const loc = this.rendition.currentLocation();
-        if (loc?.start) this.onRelocated(loc);
+      const book = this.book;
+      book.locations.generate(1600).then(() => {
+        if (this.mount !== mount || this.book !== book) return;
+        db.put('locations', { id, data: book.locations.save() });
+        this.captureVisible('locations-ready');
       }).catch(() => {});
     }
 
@@ -273,10 +353,15 @@ export class Reader {
   next() { this.rendition?.next(); }
   prev() { this.rendition?.prev(); }
 
-  onRelocated(loc) {
+  onRelocated(loc, reason = 'relocated', capture = false) {
     if (!loc?.start) return;
+    this.trace('visible', { visible: loc.start.cfi, reason, restoring: this.restoring });
+    if (this.restoring || (!capture && document.visibilityState === 'hidden')) return;
+    // Descartar la foto de un evento que pudo quedarse en la cola antes de otra navegación.
+    loc = this.rendition.currentLocation() || loc;
     this.lastActivity = Date.now();
-    this.cfi = loc.start.cfi;
+    // Conservar el pasaje exacto si sigue dentro de la página, aunque esta se repagine.
+    if (!this.containsCFI(loc, this.cfi)) this.cfi = loc.start.cfi;
     let pct = null;
     try {
       if (this.book.locations.length()) pct = this.book.locations.percentageFromCfi(this.cfi);
@@ -293,8 +378,7 @@ export class Reader {
     const label = [chapter, left > 0 ? `${left} pág. para terminar el capítulo` : ''].filter(Boolean).join(' · ');
     this.paintProgress(this.percent ?? this.rec.percent ?? 0, label);
 
-    clearTimeout(this.saveT);
-    this.saveT = setTimeout(() => this.saveProgress(), 600);
+    this.saveProgress();
   }
 
   chapterFor(href) {
@@ -312,16 +396,23 @@ export class Reader {
   }
 
   async saveProgress() {
-    if (!this.id || !this.cfi) return;
+    if (!this.id || !this.cfi || this.restoring) return;
+    const snapshot = { id: this.id, cfi: this.cfi, percent: this.percent, lastOpened: Date.now() };
+    const journalKey = 'hoja-position:' + snapshot.id;
+    const journal = JSON.stringify(snapshot);
+    try { localStorage.setItem(journalKey, journal); } catch {}
+    const number = ++this.writeNumber;
+    this.trace('save-start', { number, saved: snapshot.cfi });
     try {
-      const rec = await db.get('books', this.id);
-      if (!rec) return;
-      rec.cfi = this.cfi;
-      if (this.percent != null) rec.percent = this.percent;
-      rec.lastOpened = Date.now();
-      await db.put('books', rec);
-      this.rec = rec;
-    } catch (e) { console.warn('No se pudo guardar el avance', e); }
+      // La lectura y escritura suceden en una transacción, sin sobrescribir con un objeto atrasado.
+      const pending = db.update('books', snapshot.id, rec => rec && {
+        ...rec, cfi: snapshot.cfi, percent: snapshot.percent ?? rec.percent, lastOpened: snapshot.lastOpened,
+      });
+      this.lastSave = pending;
+      await pending;
+      try { if (localStorage.getItem(journalKey) === journal) localStorage.removeItem(journalKey); } catch {}
+      this.trace('save-complete', { number, saved: snapshot.cfi });
+    } catch (e) { this.trace('save-error', { number, saved: snapshot.cfi }); console.warn('No se pudo guardar el avance', e); }
   }
 
   tick() {
@@ -346,10 +437,19 @@ export class Reader {
     if (show) this.applyChrome();
   }
 
-  setFontSize(v) {
+  async setFontSize(v) {
+    this.captureVisible('before-font-size');
+    const target = this.cfi;
+    this.restoring = true;
     this.prefs.fontSize = Math.max(80, Math.min(160, v));
     this.rendition?.themes.fontSize(this.prefs.fontSize + '%');
-    setSetting('reader', this.prefs);
+    await setSetting('reader', this.prefs);
+    if (this.rendition && target) {
+      await this.rendition.display(target);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    this.restoring = false;
+    this.captureVisible('font-size-ready');
     this.applyChrome();
   }
 
@@ -378,9 +478,12 @@ export class Reader {
 
   async close(silent = false) {
     clearInterval(this.timer);
-    clearTimeout(this.saveT);
+    this.captureVisible('close');
     await this.flushTime();
     await this.saveProgress();
+    await this.lastSave;
+    this.trace('unmount');
+    ++this.mount;
     this.toggleSheet(false);
     this.toggleNav(false);
     this.showSelBar(false);
